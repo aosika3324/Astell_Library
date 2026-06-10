@@ -57,7 +57,10 @@ ASTELL_AUTH_ENABLED = _bool_env("ASTELL_AUTH_ENABLED", False)
 ASTELL_AUTH_USER = os.environ.get("ASTELL_AUTH_USER", "astell")
 ASTELL_AUTH_PASSWORD = os.environ.get("ASTELL_AUTH_PASSWORD", "")
 ASTELL_AUTH_PASSWORD_SHA256 = os.environ.get("ASTELL_AUTH_PASSWORD_SHA256", "").lower()
+ASTELL_AUTH_USERS_SHA256 = _csv_env("ASTELL_AUTH_USERS_SHA256", [])
 ASTELL_AUTH_REALM = os.environ.get("ASTELL_AUTH_REALM", "Astell Library")
+ASTELL_ADMIN_USERS = set(_csv_env("ASTELL_ADMIN_USERS", [ASTELL_AUTH_USER]))
+ASTELL_EMPLOYEE_USERS = set(_csv_env("ASTELL_EMPLOYEE_USERS", []))
 
 
 def add_runtime_paths() -> None:

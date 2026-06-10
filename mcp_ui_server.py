@@ -20,8 +20,11 @@ from astell_config import (
     ASTELL_AUTH_PASSWORD_SHA256,
     ASTELL_AUTH_REALM,
     ASTELL_AUTH_USER,
+    ASTELL_AUTH_USERS_SHA256,
+    ASTELL_ADMIN_USERS,
     ASTELL_CORS_ORIGINS,
     ASTELL_CONTROL_DB,
+    ASTELL_EMPLOYEE_USERS,
     ASTELL_LIBRARY_ROOT as ASTELL_LIBRARY_ROOT_PATH,
     ASTELL_OPEN_BROWSER,
     ASTELL_UI_HOST,
@@ -52,6 +55,7 @@ from modsdk_wing import (
     review_modsdk_code,
     search_modsdk_official,
 )
+import mcp_server as astell_tools
 
 ASTELL_LIBRARY_ROOT = str(ASTELL_LIBRARY_ROOT_PATH)
 LIBRARY_PATH = str(LIBRARY_PATH_VALUE)
@@ -59,13 +63,69 @@ MEMPALACE_DB = str(MEMPALACE_DB_PATH)
 # 初始化 FastAPI app
 app = FastAPI(title="Astell Control Tower API", version="2.0.0")
 
-if ASTELL_AUTH_ENABLED and not (ASTELL_AUTH_PASSWORD or ASTELL_AUTH_PASSWORD_SHA256):
-    raise RuntimeError(
-        "ASTELL_AUTH_PASSWORD or ASTELL_AUTH_PASSWORD_SHA256 must be set when ASTELL_AUTH_ENABLED=1"
-    )
-
 
 AUTH_EXEMPT_PATHS = {"/healthz"}
+ADMIN_REQUIRED_ENDPOINTS = {
+    ("GET", "/api/users"),
+    ("GET", "/api/pending"),
+    ("GET", "/api/astell/audit-report"),
+    ("POST", "/api/project/switch"),
+    ("POST", "/api/project/prefix"),
+    ("POST", "/api/workspace/tag"),
+    ("POST", "/api/solidify/execute"),
+    ("POST", "/api/solidify/reject"),
+    ("POST", "/api/library/mine"),
+}
+
+AUTH_USER_HASHES: dict[str, str] = {}
+AUTH_USER_PASSWORDS: dict[str, str] = {}
+AUTH_USER_ROLES: dict[str, str] = {}
+
+
+def _role_from_sets(username: str | None) -> str:
+    if username and username in ASTELL_ADMIN_USERS:
+        return "admin"
+    if username and username in ASTELL_EMPLOYEE_USERS:
+        return "employee"
+    return "admin" if not ASTELL_AUTH_ENABLED else "employee"
+
+
+def _register_auth_user(
+    username: str | None,
+    *,
+    password: str | None = None,
+    password_sha256: str | None = None,
+    role: str | None = None,
+) -> None:
+    if not username:
+        return
+    if password:
+        AUTH_USER_PASSWORDS[username] = password
+    if password_sha256:
+        AUTH_USER_HASHES[username] = password_sha256.lower()
+    resolved_role = role if role in {"admin", "employee"} else _role_from_sets(username)
+    AUTH_USER_ROLES[username] = resolved_role
+
+
+_register_auth_user(
+    ASTELL_AUTH_USER,
+    password=ASTELL_AUTH_PASSWORD,
+    password_sha256=ASTELL_AUTH_PASSWORD_SHA256,
+)
+
+for raw_auth_user in ASTELL_AUTH_USERS_SHA256:
+    parts = raw_auth_user.split(":")
+    if len(parts) < 2:
+        continue
+    username = parts[0].strip()
+    password_sha256 = parts[1].strip().lower()
+    role = parts[2].strip().lower() if len(parts) > 2 else None
+    _register_auth_user(username, password_sha256=password_sha256, role=role)
+
+if ASTELL_AUTH_ENABLED and not (AUTH_USER_PASSWORDS or AUTH_USER_HASHES):
+    raise RuntimeError(
+        "ASTELL_AUTH_PASSWORD, ASTELL_AUTH_PASSWORD_SHA256, or ASTELL_AUTH_USERS_SHA256 must be set when ASTELL_AUTH_ENABLED=1"
+    )
 
 
 def _auth_challenge() -> Response:
@@ -77,31 +137,66 @@ def _auth_challenge() -> Response:
 
 
 def _basic_auth_valid(header_value: str) -> bool:
+    return _authenticated_user(header_value) is not None
+
+
+def _authenticated_user(header_value: str) -> str | None:
+    parsed = _parse_basic_auth(header_value)
+    if not parsed:
+        return None
+    username, password = parsed
+
+    plain_password = AUTH_USER_PASSWORDS.get(username)
+    if plain_password:
+        return username if secrets.compare_digest(password, plain_password) else None
+
+    expected_hash = AUTH_USER_HASHES.get(username)
+    if not expected_hash:
+        return None
+    password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return username if secrets.compare_digest(password_hash, expected_hash) else None
+
+
+def _parse_basic_auth(header_value: str) -> tuple[str, str] | None:
     auth_scheme, separator, auth_param = header_value.partition(" ")
     if auth_scheme.lower() != "basic" or not separator:
-        return False
+        return None
     try:
         decoded = base64.b64decode(auth_param.strip(), validate=True).decode("utf-8")
     except (binascii.Error, UnicodeDecodeError):
-        return False
+        return None
     username, separator, password = decoded.partition(":")
     if not separator:
-        return False
-    if not secrets.compare_digest(username, ASTELL_AUTH_USER):
-        return False
-    if ASTELL_AUTH_PASSWORD:
-        return secrets.compare_digest(password, ASTELL_AUTH_PASSWORD)
-    password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    return secrets.compare_digest(password_hash, ASTELL_AUTH_PASSWORD_SHA256)
+        return None
+    return username, password
+
+
+def _role_for_user(username: str | None) -> str:
+    if username and username in AUTH_USER_ROLES:
+        return AUTH_USER_ROLES[username]
+    return _role_from_sets(username)
 
 
 @app.middleware("http")
 async def require_basic_auth(request: Request, call_next):
     if not ASTELL_AUTH_ENABLED or request.url.path in AUTH_EXEMPT_PATHS:
+        request.state.username = "local"
+        request.state.role = "admin"
         return await call_next(request)
-    if _basic_auth_valid(request.headers.get("Authorization", "")):
-        return await call_next(request)
-    return _auth_challenge()
+
+    username = _authenticated_user(request.headers.get("Authorization", ""))
+    if not username:
+        return _auth_challenge()
+
+    role = _role_for_user(username)
+    request.state.username = username
+    request.state.role = role
+    if (request.method.upper(), request.url.path) in ADMIN_REQUIRED_ENDPOINTS and role != "admin":
+        return JSONResponse(
+            content={"detail": "Admin role required"},
+            status_code=403,
+        )
+    return await call_next(request)
 
 
 def _resolve_under(base_path: str, rel_path: str, *, must_be_file: bool = False) -> str:
@@ -136,6 +231,10 @@ class ProjectCreate(BaseModel):
     is_mc_project: bool = True
 
 
+class ProjectPrefixUpdate(BaseModel):
+    new_prefix: str
+
+
 class ModsdkSearchRequest(BaseModel):
     query: str
     scope: str = "docs"
@@ -156,6 +255,33 @@ class ModsdkReviewRequest(BaseModel):
 
 class ModsdkPracticesRequest(BaseModel):
     topic: str = "general"
+
+
+class AstellTraceRequest(BaseModel):
+    type: str
+    content: str
+    title: str = "新记录"
+
+
+class AstellResourceRequest(BaseModel):
+    resource_id: str
+    description: str
+    file_path: str = "N/A"
+
+
+class AstellRetrieveRequest(BaseModel):
+    query: str
+    current_project: Optional[str] = None
+    strict_mode: bool = False
+
+
+class AstellResearchRequest(BaseModel):
+    query: str
+
+
+def _call_astell_tool(tool_fn, *args, **kwargs):
+    astell_tools.manager.sync_with_db()
+    return tool_fn(*args, **kwargs)
 
 # 同步初始环境
 sync_active_project_to_env()
@@ -178,6 +304,27 @@ def get_index_alias():
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/api/session")
+def get_session(request: Request):
+    username = getattr(request.state, "username", None)
+    role = getattr(request.state, "role", _role_for_user(username))
+    return {
+        "auth_enabled": ASTELL_AUTH_ENABLED,
+        "username": username or ("local" if not ASTELL_AUTH_ENABLED else None),
+        "role": role,
+        "available_roles": ["admin", "employee"],
+    }
+
+
+@app.get("/api/users")
+def get_users():
+    users = [
+        {"username": username, "role": role}
+        for username, role in sorted(AUTH_USER_ROLES.items())
+    ]
+    return {"users": users}
 
 
 @app.get("/readyz")
@@ -203,13 +350,14 @@ def readyz():
 
 
 @app.get("/api/status")
-def get_status():
+def get_status(request: Request):
     active_project = get_active_project()
+    role = getattr(request.state, "role", "employee")
     return {
         "active_project": active_project["path"] if active_project else "None",
         "active_prefix": active_project["prefix"] if active_project else "None",
         "library_wings": [d for d in os.listdir(LIBRARY_PATH) if d.startswith("wing_")] if os.path.exists(LIBRARY_PATH) else [],
-        "all_projects": get_all_projects()
+        "all_projects": get_all_projects() if role == "admin" else [],
     }
 
 @app.post("/api/project/switch")
@@ -256,6 +404,86 @@ def switch_project(proj: ProjectCreate):
                 status_msg.append(f"已对接文件 {filename}")
             
     return {"success": True, "project": {"path": path, "prefix": prefix, "is_mc": is_mc}, "details": status_msg}
+
+
+@app.post("/api/project/prefix")
+def update_project_prefix(req: ProjectPrefixUpdate):
+    new_prefix = req.new_prefix.strip()
+    if not new_prefix:
+        raise HTTPException(status_code=400, detail="项目前缀不能为空")
+
+    project = get_active_project()
+    if not project:
+        raise HTTPException(status_code=400, detail="未设置活跃项目")
+
+    output = _call_astell_tool(astell_tools.update_project_prefix, new_prefix)
+    add_project(project["path"], new_prefix, bool(project.get("is_mc_project", True)))
+    sync_active_project_to_env()
+    return {"success": True, "output": output, "prefix": new_prefix}
+
+
+@app.get("/api/astell/inventory")
+def api_astell_inventory():
+    output = _call_astell_tool(astell_tools.list_knowledge_inventory)
+    return {"output": output}
+
+
+@app.post("/api/astell/retrieve")
+def api_astell_retrieve(req: AstellRetrieveRequest):
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="检索问题不能为空")
+    output = _call_astell_tool(
+        astell_tools.retrieve_astell_knowledge,
+        query=req.query.strip(),
+        current_project=req.current_project.strip() if req.current_project else None,
+        strict_mode=req.strict_mode,
+    )
+    return {"output": output}
+
+
+@app.post("/api/astell/trace")
+def api_astell_trace(req: AstellTraceRequest):
+    trace_type = req.type.strip()
+    if trace_type not in {"dev", "problem", "search"}:
+        raise HTTPException(status_code=400, detail="type 只能是 dev、problem 或 search")
+    if not req.content.strip():
+        raise HTTPException(status_code=400, detail="留痕内容不能为空")
+    output = _call_astell_tool(
+        astell_tools.record_astell_trace,
+        type=trace_type,
+        content=req.content,
+        title=req.title.strip() or "新记录",
+    )
+    return {"success": True, "output": output}
+
+
+@app.post("/api/astell/resource")
+def api_astell_resource(req: AstellResourceRequest):
+    if not req.resource_id.strip():
+        raise HTTPException(status_code=400, detail="资源 ID 不能为空")
+    if not req.description.strip():
+        raise HTTPException(status_code=400, detail="资源描述不能为空")
+    output = _call_astell_tool(
+        astell_tools.register_resource_id,
+        resource_id=req.resource_id.strip(),
+        description=req.description.strip(),
+        file_path=req.file_path.strip() or "N/A",
+    )
+    return {"success": True, "output": output}
+
+
+@app.post("/api/astell/deep-research")
+def api_astell_deep_research(req: AstellResearchRequest):
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="研究问题不能为空")
+    output = _call_astell_tool(astell_tools.suggest_deep_research, req.query.strip())
+    return {"output": output}
+
+
+@app.get("/api/astell/audit-report")
+def api_astell_audit_report():
+    output = _call_astell_tool(astell_tools.audit_for_solidification)
+    return {"output": output}
 
 @app.get("/api/workspace/modules")
 def get_workspace_modules():
@@ -396,6 +624,13 @@ def get_pending():
     for m in modules_res["modules"]:
         # 交叉审计逻辑：有开发日志且没有报错（或报错已解决），且未被标记为不可信
         if m.get("has_dev") and m.get("prob_resolved", True) and not m.get("is_untrustworthy"):
+            try:
+                full_dev_path = _resolve_under(get_active_project()["path"], m["dev_path"], must_be_file=True)
+                with open(full_dev_path, "r", encoding="utf-8") as file:
+                    if "<!-- SOLIDIFY_REJECTED -->" in file.read():
+                        continue
+            except Exception:
+                pass
             pending_items.append({
                 "type": "module",
                 "title": f"模块固化: {m['name']}",
@@ -410,6 +645,12 @@ def get_pending():
 class SolidifyRequest(BaseModel):
     rel_path: str # e.g. "MyMod_开发日志/夜视曲奇.md"
     module_name: str
+
+
+class RejectSolidifyRequest(BaseModel):
+    rel_path: str
+    reason: str = "暂不固化"
+
 
 @app.post("/api/solidify/execute")
 def execute_solidify(req: SolidifyRequest):
@@ -500,6 +741,20 @@ def execute_solidify(req: SolidifyRequest):
         "vector_status": vector_status,
         "details": copied_details
     }
+
+
+@app.post("/api/solidify/reject")
+def reject_solidify(req: RejectSolidifyRequest):
+    project = get_active_project()
+    if not project:
+        raise HTTPException(status_code=400, detail="未设置活跃项目")
+
+    full_path = _resolve_under(project["path"], req.rel_path, must_be_file=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    reason = req.reason.strip() or "暂不固化"
+    with open(full_path, "a", encoding="utf-8") as f:
+        f.write(f"\n\n> <!-- SOLIDIFY_REJECTED --> {timestamp} 管理员暂不固化：{reason}\n")
+    return {"success": True}
 
 # --- 知识库树读取 API ---
 def _get_vectorized_files():

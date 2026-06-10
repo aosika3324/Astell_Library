@@ -8,6 +8,8 @@ PUBLIC_HOST="${PUBLIC_HOST:-${1:-localhost}}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-${2:-astell}}"
 BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-${3:-}}"
 ACME_EMAIL="${ACME_EMAIL:-${4:-admin@example.com}}"
+EMPLOYEE_AUTH_USER="${EMPLOYEE_AUTH_USER:-${5:-}}"
+EMPLOYEE_AUTH_PASSWORD="${EMPLOYEE_AUTH_PASSWORD:-${6:-}}"
 ASTELL_PUBLISHED_PORT="${ASTELL_PUBLISHED_PORT:-8080}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -22,8 +24,20 @@ else
   GENERATED_PASSWORD=0
 fi
 
-BASIC_AUTH_HASH="$(docker run --rm caddy:2 caddy hash-password --plaintext "${BASIC_AUTH_PASSWORD}")"
 ASTELL_AUTH_PASSWORD_SHA256="$(printf '%s' "${BASIC_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
+ASTELL_AUTH_USERS_SHA256="${BASIC_AUTH_USER}:${ASTELL_AUTH_PASSWORD_SHA256}:admin"
+ASTELL_EMPLOYEE_USERS=""
+EMPLOYEE_GENERATED_PASSWORD=0
+
+if [[ -n "${EMPLOYEE_AUTH_USER}" ]]; then
+  if [[ -z "${EMPLOYEE_AUTH_PASSWORD}" ]]; then
+    EMPLOYEE_AUTH_PASSWORD="$(openssl rand -base64 24 | tr -d '\n')"
+    EMPLOYEE_GENERATED_PASSWORD=1
+  fi
+  EMPLOYEE_AUTH_PASSWORD_SHA256="$(printf '%s' "${EMPLOYEE_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
+  ASTELL_AUTH_USERS_SHA256="${ASTELL_AUTH_USERS_SHA256},${EMPLOYEE_AUTH_USER}:${EMPLOYEE_AUTH_PASSWORD_SHA256}:employee"
+  ASTELL_EMPLOYEE_USERS="${EMPLOYEE_AUTH_USER}"
+fi
 
 if [[ "${PUBLIC_HOST}" == "localhost" || "${PUBLIC_HOST}" == "127.0.0.1" ]]; then
   ASTELL_CORS_ORIGINS="http://localhost:${ASTELL_PUBLISHED_PORT},http://127.0.0.1:${ASTELL_PUBLISHED_PORT}"
@@ -35,11 +49,14 @@ cat > .env <<EOF
 PUBLIC_HOST=${PUBLIC_HOST}
 ACME_EMAIL=${ACME_EMAIL}
 BASIC_AUTH_USER=${BASIC_AUTH_USER}
-BASIC_AUTH_HASH='${BASIC_AUTH_HASH}'
+BASIC_AUTH_HASH='unused-app-auth-handled-by-astell'
 ASTELL_AUTH_ENABLED=1
 ASTELL_AUTH_USER=${BASIC_AUTH_USER}
 ASTELL_AUTH_PASSWORD_SHA256=${ASTELL_AUTH_PASSWORD_SHA256}
+ASTELL_AUTH_USERS_SHA256=${ASTELL_AUTH_USERS_SHA256}
 ASTELL_AUTH_REALM=Astell Library
+ASTELL_ADMIN_USERS=${BASIC_AUTH_USER}
+ASTELL_EMPLOYEE_USERS=${ASTELL_EMPLOYEE_USERS}
 ASTELL_CORS_ORIGINS=${ASTELL_CORS_ORIGINS}
 ASTELL_UI_HOST=0.0.0.0
 ASTELL_UI_PORT=8080
@@ -54,8 +71,15 @@ docker compose up -d --build
 
 echo "Astell service is starting."
 echo "URL: http://localhost:${ASTELL_PUBLISHED_PORT}/"
-echo "Username: ${BASIC_AUTH_USER}"
+echo "Admin username: ${BASIC_AUTH_USER}"
 if [[ "${GENERATED_PASSWORD}" == "1" ]]; then
-  echo "Generated password: ${BASIC_AUTH_PASSWORD}"
+  echo "Generated admin password: ${BASIC_AUTH_PASSWORD}"
   echo "Store this password now; it is not written in plaintext."
+fi
+if [[ -n "${EMPLOYEE_AUTH_USER}" ]]; then
+  echo "Employee username: ${EMPLOYEE_AUTH_USER}"
+  if [[ "${EMPLOYEE_GENERATED_PASSWORD}" == "1" ]]; then
+    echo "Generated employee password: ${EMPLOYEE_AUTH_PASSWORD}"
+    echo "Store this employee password now; it is not written in plaintext."
+  fi
 fi

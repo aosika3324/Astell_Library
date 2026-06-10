@@ -38,6 +38,30 @@ pip install chromadb sentence-transformers pydantic
 
 ---
 
+## 🖥️ 服务化控制台
+
+Astell 可以作为 Web 控制台部署，入口为 `mcp_ui_server.py`。控制台包含管理员和员工视图：员工可查官方 SDK、检索 Astell 知识、写入项目留痕、登记资源 ID；管理员额外可切换项目、更新项目前缀、审查固化、标记不可信记录和打包知识库。
+
+Docker/Caddy 部署建议从容器目录初始化环境：
+
+```bash
+cd deploy/container
+bash ./init_env.sh astell.example.com admin 'AdminPassword' admin@example.com employee 'EmployeePassword'
+docker compose up -d --build
+```
+
+多账号由应用层 Basic Auth 处理。可在 `.env` 中配置：
+
+```dotenv
+ASTELL_AUTH_USER=admin
+ASTELL_AUTH_PASSWORD_SHA256=<admin-password-sha256>
+ASTELL_AUTH_USERS_SHA256=admin:<admin-password-sha256>:admin,employee:<employee-password-sha256>:employee
+ASTELL_ADMIN_USERS=admin
+ASTELL_EMPLOYEE_USERS=employee
+```
+
+---
+
 ## 🏰 MemPalace 记忆宫殿运作机制
 
 当前系统抛弃了让 AI 盲目扫描庞大项目的低效方式，而是通过 MCP 工具 `retrieve_astell_knowledge` 进行精准的“向量记忆召回”。

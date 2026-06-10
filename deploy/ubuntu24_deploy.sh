@@ -17,8 +17,13 @@ SERVER_NAME="${SERVER_NAME:-_}"
 NGINX_PORT="${NGINX_PORT:-80}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-astell}"
 BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-}"
+EMPLOYEE_AUTH_USER="${EMPLOYEE_AUTH_USER:-}"
+EMPLOYEE_AUTH_PASSWORD="${EMPLOYEE_AUTH_PASSWORD:-}"
 ASTELL_AUTH_USER="${ASTELL_AUTH_USER:-${BASIC_AUTH_USER}}"
 ASTELL_AUTH_PASSWORD_SHA256="${ASTELL_AUTH_PASSWORD_SHA256:-}"
+ASTELL_AUTH_USERS_SHA256="${ASTELL_AUTH_USERS_SHA256:-}"
+ASTELL_ADMIN_USERS="${ASTELL_ADMIN_USERS:-${ASTELL_AUTH_USER}}"
+ASTELL_EMPLOYEE_USERS="${ASTELL_EMPLOYEE_USERS:-${EMPLOYEE_AUTH_USER}}"
 
 if [[ "${ENABLE_NGINX}" == "1" && -z "${ASTELL_UI_HOST:-}" ]]; then
   ASTELL_UI_HOST="127.0.0.1"
@@ -51,13 +56,27 @@ ensure_auth_secret() {
     return
   fi
   if [[ -n "${ASTELL_AUTH_PASSWORD_SHA256}" ]]; then
-    return
+    ASTELL_AUTH_USERS_SHA256="${ASTELL_AUTH_USERS_SHA256:-${ASTELL_AUTH_USER}:${ASTELL_AUTH_PASSWORD_SHA256}:admin}"
+  else
+    if [[ -z "${BASIC_AUTH_PASSWORD}" ]]; then
+      BASIC_AUTH_PASSWORD="$(openssl rand -base64 18)"
+      log "Generated BASIC_AUTH_PASSWORD for ${BASIC_AUTH_USER}: ${BASIC_AUTH_PASSWORD}"
+    fi
+    ASTELL_AUTH_PASSWORD_SHA256="$(printf '%s' "${BASIC_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
+    ASTELL_AUTH_USERS_SHA256="${ASTELL_AUTH_USERS_SHA256:-${ASTELL_AUTH_USER}:${ASTELL_AUTH_PASSWORD_SHA256}:admin}"
   fi
-  if [[ -z "${BASIC_AUTH_PASSWORD}" ]]; then
-    BASIC_AUTH_PASSWORD="$(openssl rand -base64 18)"
-    log "Generated BASIC_AUTH_PASSWORD for ${BASIC_AUTH_USER}: ${BASIC_AUTH_PASSWORD}"
+
+  if [[ -n "${EMPLOYEE_AUTH_USER}" ]]; then
+    if [[ -z "${EMPLOYEE_AUTH_PASSWORD}" ]]; then
+      EMPLOYEE_AUTH_PASSWORD="$(openssl rand -base64 18)"
+      log "Generated EMPLOYEE_AUTH_PASSWORD for ${EMPLOYEE_AUTH_USER}: ${EMPLOYEE_AUTH_PASSWORD}"
+    fi
+    local employee_password_sha256
+    employee_password_sha256="$(printf '%s' "${EMPLOYEE_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
+    if [[ "${ASTELL_AUTH_USERS_SHA256}" != *"${EMPLOYEE_AUTH_USER}:"* ]]; then
+      ASTELL_AUTH_USERS_SHA256="${ASTELL_AUTH_USERS_SHA256},${EMPLOYEE_AUTH_USER}:${employee_password_sha256}:employee"
+    fi
   fi
-  ASTELL_AUTH_PASSWORD_SHA256="$(printf '%s' "${BASIC_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
 }
 
 write_env_file() {
@@ -75,7 +94,10 @@ ASTELL_OPEN_BROWSER=0
 ASTELL_AUTH_ENABLED=${ENABLE_APP_AUTH}
 ASTELL_AUTH_USER=${ASTELL_AUTH_USER}
 ASTELL_AUTH_PASSWORD_SHA256=${ASTELL_AUTH_PASSWORD_SHA256}
+ASTELL_AUTH_USERS_SHA256=${ASTELL_AUTH_USERS_SHA256}
 ASTELL_AUTH_REALM=Astell Library
+ASTELL_ADMIN_USERS=${ASTELL_ADMIN_USERS}
+ASTELL_EMPLOYEE_USERS=${ASTELL_EMPLOYEE_USERS}
 PYTHONUNBUFFERED=1
 EOF
   chmod 0644 "${ENV_FILE}"
@@ -125,6 +147,9 @@ write_nginx_site() {
   if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
     ensure_auth_secret
     htpasswd -bc "/etc/nginx/${APP_NAME}.htpasswd" "${BASIC_AUTH_USER}" "${BASIC_AUTH_PASSWORD}"
+    if [[ -n "${EMPLOYEE_AUTH_USER}" ]]; then
+      htpasswd -b "/etc/nginx/${APP_NAME}.htpasswd" "${EMPLOYEE_AUTH_USER}" "${EMPLOYEE_AUTH_PASSWORD}"
+    fi
     auth_lines=$'        auth_basic "Astell Library";\n        auth_basic_user_file /etc/nginx/'"${APP_NAME}"$'.htpasswd;'
   fi
 
