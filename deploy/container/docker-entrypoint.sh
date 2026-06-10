@@ -24,6 +24,67 @@ if [[ "$(id -u)" == "0" ]]; then
   exec gosu astell "$0" "$@"
 fi
 
-python /app/mempalace_db/init_sqlite.py
+python - <<'PY'
+import os
+import sqlite3
+
+db_path = os.environ.get("ASTELL_CONTROL_DB", "/data/mempalace_db/astell_control.db")
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+with sqlite3.connect(db_path) as conn:
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT UNIQUE,
+        prefix TEXT,
+        is_mc_project INTEGER,
+        last_active INTEGER DEFAULT 0
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS pipelines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        created_at TEXT,
+        status TEXT DEFAULT 'pending'
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS subtasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pipeline_id INTEGER,
+        content TEXT,
+        status TEXT DEFAULT 'pending',
+        summary TEXT,
+        completed_at TEXT,
+        FOREIGN KEY (pipeline_id) REFERENCES pipelines(id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS task_executions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        prompt TEXT,
+        status TEXT DEFAULT 'pending',
+        log_path TEXT,
+        created_at TEXT,
+        completed_at TEXT
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS solidification_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_path TEXT,
+        prefix TEXT,
+        wing_name TEXT,
+        solidified_at TEXT,
+        files_count INTEGER,
+        details TEXT
+    )
+    """)
+    conn.commit()
+print(f"Initialized SQLite database at: {db_path}")
+PY
 
 exec "$@"
