@@ -4,4 +4,3 @@ uvicorn[standard]
 chromadb
 pydantic
 pyyaml
-sentence-transformers

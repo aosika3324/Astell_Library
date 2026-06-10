@@ -47,7 +47,7 @@ if ($PublicHost -eq "localhost" -or $PublicHost -eq "127.0.0.1") {
 PUBLIC_HOST=$PublicHost
 ACME_EMAIL=$AcmeEmail
 BASIC_AUTH_USER=$User
-BASIC_AUTH_HASH=$BasicAuthHash
+BASIC_AUTH_HASH='$BasicAuthHash'
 ASTELL_AUTH_ENABLED=1
 ASTELL_AUTH_USER=$User
 ASTELL_AUTH_PASSWORD_SHA256=$AstellPasswordSha256

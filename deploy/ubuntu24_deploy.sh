@@ -203,14 +203,7 @@ main() {
   "${PYTHON_BIN}" -m pip install --upgrade pip setuptools wheel
 
   log "Installing Python dependencies"
-  "${PYTHON_BIN}" -m pip install \
-    fastmcp \
-    fastapi \
-    'uvicorn[standard]' \
-    chromadb \
-    pydantic \
-    pyyaml \
-    sentence-transformers
+  "${PYTHON_BIN}" -m pip install -r "${INSTALL_DIR}/requirements.txt"
   "${PYTHON_BIN}" -m pip install -e "${INSTALL_DIR}/mempalace-develop"
 
   ensure_auth_secret

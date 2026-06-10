@@ -18,7 +18,8 @@ RUN apt-get update \
 COPY requirements.txt /tmp/astell-requirements.txt
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel \
-    && /opt/venv/bin/python -m pip install -r /tmp/astell-requirements.txt
+    && /opt/venv/bin/python -m pip install -r /tmp/astell-requirements.txt \
+    && rm -rf /root/.cache/pip /tmp/astell-requirements.txt
 
 COPY . /app
 
@@ -26,7 +27,7 @@ RUN /opt/venv/bin/python -m pip install -e /app/mempalace-develop \
     && groupadd --system astell \
     && useradd --system --gid astell --home-dir /app --shell /usr/sbin/nologin astell \
     && mkdir -p /data/mempalace_db /data/Library /data/COMM_BUFFER /projects \
-    && chown -R astell:astell /app /data /projects /opt/venv \
+    && chown -R astell:astell /data /projects \
     && chmod +x /app/deploy/container/docker-entrypoint.sh
 
 ENV PATH="/opt/venv/bin:${PATH}" \
