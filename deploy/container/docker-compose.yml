@@ -1,0 +1,56 @@
+services:
+  astell:
+    build:
+      context: ../..
+      dockerfile: deploy/container/Dockerfile
+    image: astell-library:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ASTELL_LIBRARY_ROOT: /app
+      MEMPALACE_SRC: /app/mempalace-develop
+      MEMPALACE_DB: /data/mempalace_db
+      ASTELL_KNOWLEDGE_LIBRARY: /data/Library
+      ASTELL_COMM_BUFFER: /data/COMM_BUFFER
+      ASTELL_CONTROL_DB: /data/mempalace_db/astell_control.db
+      ASTELL_UI_HOST: 0.0.0.0
+      ASTELL_UI_PORT: 8080
+      ASTELL_OPEN_BROWSER: 0
+    volumes:
+      - astell_mempalace_db:/data/mempalace_db
+      - astell_library:/data/Library
+      - astell_comm:/data/COMM_BUFFER
+      - ./projects:/projects
+    expose:
+      - "8080"
+    networks:
+      - astell_internal
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - astell
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - astell_internal
+
+volumes:
+  astell_mempalace_db:
+  astell_library:
+  astell_comm:
+  caddy_data:
+  caddy_config:
+
+networks:
+  astell_internal:
+    driver: bridge

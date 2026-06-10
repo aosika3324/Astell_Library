@@ -1,0 +1,30 @@
+[
+  {
+    "task_id": "a_Anatomist_Core_UI",
+    "prompt": "【任务】：提取 JOJO 模组的客户端输入与 UI 渲染管线 (Client Input & UI Rendering Pipeline)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `client.py`、`ui.py`、`keyMappings.py`、`UI渲染`、`按键绑定` 相关的核心逻辑。\n2. 分析其如何进行玩家按键绑定 (KeyMappings) 拦截，以及体力/替身能量槽在屏幕上的持续渲染更新机制。\n3. 将提取出的纯净版核心代码、必要的JSON规范和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoCore_UI_Input/drawer/Client_Input_UI_Rendering.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Anatomist_EventBus",
+    "prompt": "【任务】：提取 JOJO 模组的服务端事件分发总线 (Server Event Routing Bus)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `server.py`、`JoJoConfig.py`、`事件分发`、`冷却` 相关的核心逻辑。\n2. 分析其如何拦截玩家的攻击/潜行等核心原版事件，并将其转发给各自独立的“替身脚本”来处理，以及 CD 冷却管理体系。\n3. 将提取出的纯净版核心代码、配置说明和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoCore_EventBus/drawer/Server_Event_Routing_Bus.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Anatomist_StarPlatinum",
+    "prompt": "【任务】：提取 JOJO 模组的近战连打状态机 (Melee Combo System) - 白金之星 (Star Platinum)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `BaiJinZhiXing`、`star_platinum`、`近战`、`连打` 相关的核心逻辑。\n2. 分析其如何在服务端/客户端实现：替身出现、前方寻敌、高频伤害判定、播放动画和特效。\n3. 将提取出的纯净版核心代码、必要的JSON规范和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoPrototype_MeleeCombo/drawer/MeleeCombo_StarPlatinum.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Anatomist_Projectile",
+    "prompt": "【任务】：提取 JOJO 模组的远程抛射物与追踪机制 (Projectile & Tracking)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `dio_knife`、`ya_bullet`、`寻路`、`追踪` 相关的核心逻辑。\n2. 分析其如何发射自定义实体（如飞刀/子弹），并让实体在 tick 中持续获取锁定目标的坐标进行追踪寻路。\n3. 将提取出的纯净版核心代码、必要的JSON规范和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoPrototype_Projectile/drawer/Projectile_Tracking.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Anatomist_TimeStop",
+    "prompt": "【任务】：提取 JOJO 模组的全局时空控制特技 (Global Time Manipulation)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `ShiJie.py`、`时间停止`、`冻结实体`、`后处理` 相关的核心逻辑。\n2. 分析其如何实现“时间停止”，包括：冻结所有实体的 AI 寻路、暂停抛射物飞行、渲染全屏负片后处理效果。\n3. 将提取出的纯净版核心代码、必要的资源配置说明和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoPrototype_TimeStop/drawer/Global_Time_Manipulation.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Anatomist_Vehicles",
+    "prompt": "【任务】：提取 JOJO 模组的载具与大型乘骑实体 (Mounts & Vehicles)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `qijiyuni_train.json`（火车）、`ya_horse.json`（马）、`乘骑`、`载具` 相关的核心逻辑。\n2. 分析其如何创建可乘骑、甚至带有独特动画（如冲撞）的大型实体及其生成与控制逻辑。\n3. 将提取出的纯净版核心代码、必要的JSON规范和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_JojoPrototype_Vehicles/drawer/Mounts_Vehicles.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  },
+  {
+    "task_id": "a_Sweeper_Jojo",
+    "prompt": "【任务】：提取 JOJO 模组的遗漏特征与孤立类扫尾 (Sweeping)\n【步骤】：\n1. 请使用 `verified_research` 工具（设定 current_project='jojo'）检索与 `mathLib.py`、`custom_layout.py` 或其他未在近战、远程、时停、UI和事件分发中出现的工具类逻辑。\n2. 分析这些工具类的作用（例如向量计算、特定的UI布局类等）。\n3. 将提取出的纯净版核心代码和解剖原理解析总结成一篇说明文档。\n4. 使用 write_to_file 将文档保存到 `Library/wing_Golden_Mods/room_Jojo_Utils_Missing_Parts/drawer/Missing_Parts_Sweeper.md` 文件中。\n5. 务必确保只提取纯净逻辑，并在完成后结束任务。"
+  }
+]

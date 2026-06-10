@@ -1,0 +1,19 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$PUBLIC_HOST} {
+    encode zstd gzip
+
+    basic_auth {
+        {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+    }
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        X-Frame-Options "DENY"
+    }
+
+    reverse_proxy astell:8080
+}

@@ -1,0 +1,69 @@
+# Python/cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local secrets and deployment-generated files
+.env
+*.env
+deploy/container/.env
+deploy/container/projects/
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Runtime logs/status/process files
+*.log
+*.pid
+*.status
+ui_server.log
+relative path to file
+
+# Runtime communication buffers
+COMM_BUFFER/
+Astell_Scripts/SubAgent_Dispatch/COMM_BUFFER/
+
+# Local vector/control databases and Chroma indexes
+mempalace_db/astell_control.db
+mempalace_db/chroma.sqlite3
+mempalace_db/*/
+mempalace_db/**/*.bin
+mempalace_db/**/*.pickle
+
+# Generated benchmark outputs
+mempalace-develop/benchmarks/results_*.json
+mempalace-develop/benchmarks/results_*.jsonl
+
+# Legacy scratch/archive area
+garbage/
+
+# Node/site build outputs
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+coverage/

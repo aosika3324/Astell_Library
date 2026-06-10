@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astell 控制中心 - 专业 AI 研发中枢</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="ui/css/style.css">
+</head>
+<body class="min-h-screen flex overflow-hidden">
+
+    <!-- 🌟 左侧侧边栏 -->
+    <aside class="w-64 bg-slate-950 flex flex-col border-r border-slate-800/80 sticky top-0 h-screen transition-all shadow-2xl z-20">
+        <div class="p-6 flex items-center gap-3 border-b border-slate-800/60">
+            <div class="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-tower-observation text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-black tracking-tighter italic text-white">ASTELL <span class="text-indigo-400">TOWER</span></h1>
+                <p class="text-[9px] uppercase tracking-[0.25em] text-slate-500 font-bold">Workspace Engine 2.0</p>
+            </div>
+        </div>
+
+        <nav class="flex-grow mt-6 px-4 space-y-1.5">
+            <button onclick="switchView('audit')" id="nav-audit" class="tab-btn active w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
+                <i class="fa-solid fa-shield-halved text-lg"></i>
+                <span>记忆审批</span>
+            </button>
+            <button onclick="switchView('library')" id="nav-library" class="tab-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
+                <i class="fa-solid fa-vault text-lg"></i>
+                <span>记忆宫殿</span>
+            </button>
+            <button onclick="switchView('workspace')" id="nav-workspace" class="tab-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
+                <i class="fa-solid fa-laptop-code text-lg"></i>
+                <span>工作区记录</span>
+            </button>
+            <button onclick="switchView('guide')" id="nav-guide" class="tab-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
+                <i class="fa-solid fa-book-open text-lg"></i>
+                <span>指令与规范 (Guide)</span>
+            </button>
+        </nav>
+
+        <!-- 底部项目状态 -->
+        <div class="p-4 border-t border-slate-900 mt-auto space-y-3">
+            <!-- Active Project Badge -->
+            <div id="project-badge" class="flex flex-col gap-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                <span class="text-[9px] uppercase font-black tracking-wider text-slate-500">Active Project</span>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+                        <span class="text-xs font-bold truncate text-slate-300" id="current-project-name">加载中...</span>
+                    </div>
+                    <button onclick="showSwitchProjectModal()" class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold">切换</button>
+                </div>
+            </div>
+            <!-- Astell MCP Status Badge -->
+            <div class="flex items-center justify-between px-3 py-2 bg-slate-900/40 rounded-lg text-[10px] border border-slate-900 text-slate-400 font-medium">
+                <span>Astell MCP Hub</span>
+                <span class="flex items-center gap-1 text-emerald-400"><i class="fa-solid fa-circle text-[6px]"></i> Online</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 🌟 主内容区域 -->
+    <main class="flex-grow flex flex-col min-w-0 h-screen overflow-hidden bg-slate-900">
+
+        <!-- 💡 视图 0: 指令与规范 (Guide) -->
+        <div id="view-guide" class="hidden p-6 flex flex-col h-full overflow-hidden">
+            <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-base font-black text-white">指令与开发规范 (Astell Guide)</h2>
+                    <p class="text-xs text-slate-400">项目开发全流程规范与内置核心程序功能介绍</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
+                <!-- 左半部：系统核心功能介绍 -->
+                <div class="col-span-6 bg-slate-950 rounded-2xl p-6 border border-slate-800 flex flex-col h-full overflow-hidden shadow-sm">
+                    <h3 class="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-square-poll-horizontal"></i> 系统核心程序功能说明
+                    </h3>
+                    <div class="flex-grow overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+                        
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">retrieve_astell_knowledge</span>
+                                智能知识检索
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                从 MemPalace 数据库中高精度检索项目记忆 (wing_Project_Memory)、专项攻坚经验 (wing_Special_Operation_Memory) 及官方 SDK。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: query (str), current_project (str, 可选), strict_mode (bool, 默认False)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">record_astell_trace</span>
+                                [强制] 原子化开发留痕
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                <strong class="text-rose-400">警告：AI 严禁口头汇报进度而不留痕。</strong> 凡涉及实现新逻辑、遇到报错或检索空白，必须立即调用此工具。
+                                系统会根据 <code class="text-indigo-300">title</code> 参数自动在 <code class="text-indigo-300">开发日志/</code> 或 <code class="text-indigo-300">问题记录/</code> 文件夹下创建原子 MD 文件。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: type (str: dev/problem/search), content (str), title (功能/模块标识符)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">set_active_project</span>
+                                [必须调用] 开工契约
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                <b>所有工作的起点。</b> AI 必须在接收任务后立即调用，初始化项目环境。系统会自动校验 <code class="text-indigo-300">resource</code> 与 <code class="text-indigo-300">behavior</code> 目录，并建立原子化记录仓库。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: path (str), prefix (项目前缀, 如 NightVision)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">suggest_deep_research</span>
+                                深度检索建议
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                当常规搜索无果时，自动生成针对 `Library/` 源码和专项分区的深度检索路径建议，引导主代理通过高价值路径获取解法。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: query (str)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">solidify_memory</span>
+                                记忆固化申请
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                发起记忆固化申请。AI 无权直接写库，此工具仅提醒人类前往控制塔“记忆审批”进行人工审查后手动入库，确保长期记忆的纯净度。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: 无</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">register_resource_id</span>
+                                资源 ID 注册
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                将新定义的实体/物品/方块 ID 写入“信息记录”，自带重复校验机制，从源头杜绝资源 ID 冲突导致的注册覆盖。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: resource_id (str), description (str), file_path (str, 可选)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">audit_for_solidification</span>
+                                固化前安全审计
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                在发起固化前自动对比“开发日志”与“问题记录”，标记尚未解决的报错并提取“搜索日志”中的知识空白，防止脏数据或带 Bug 的方案误入库。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: 无</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">list_knowledge_inventory</span>
+                                知识清单概览
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                列出记忆宫殿中所有知识分区 (Wings) 及其覆盖范围。建议在盲目搜索前先调用，了解知识库边界以制定更精准的检索策略。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: 无</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">update_project_prefix</span>
+                                项目前缀更新
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                当 AI 对项目有更深理解后，重命名当前的记录文件前缀，并自动同步重命名现有的四件套文档，保持命名一致性。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: new_prefix (str)</p>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-850">
+                            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-400">open_control_tower</span>
+                                控制塔启动
+                            </h4>
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                在浏览器中打开 Astell 可视化控制塔，供人类进行记忆审批、查看知识库向量化状态及管理项目。
+                            </p>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1.5">参数: 无</p>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 右半部：Astell 标准开发工作流规范 -->
+                <div class="col-span-6 bg-slate-950 rounded-2xl p-6 border border-slate-800 flex flex-col h-full overflow-hidden shadow-sm">
+                    <h3 class="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-list-ol"></i> Astell 核心标准开发与固化规章
+                    </h3>
+                    <div class="flex-grow overflow-y-auto pr-1 space-y-4 custom-scrollbar text-xs">
+                        
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">1</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">项目初始化与四件套锁定</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">根据项目指定并对接四个关键文档：</p>
+                                <ul class="list-disc pl-4 mt-1 space-y-1 text-[11px] text-slate-500">
+                                    <li><strong class="text-slate-400">开发日志：</strong>记录开发对应模块时使用的关键方法与时间。</li>
+                                    <li><strong class="text-slate-400">信息记录：</strong>记录注册的资源 ID 避免重复冲突。</li>
+                                    <li><strong class="text-slate-400">问题记录：</strong>仅记录严重报错和反馈问题。</li>
+                                    <li><strong class="text-slate-400">搜索日志：</strong>只在检索不到对应内容时记录，用于辅助后期固化决策。</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">2</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">分辨任务类别</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    对派发的开发需求进行分类：<strong class="text-indigo-400">“新增内容”</strong>（如设计新实体等，必须同步到信息记录中）、<strong class="text-indigo-400">“优化功能”</strong>或<strong class="text-indigo-400">“反馈之前的报错”</strong>（只有在此状态下才动用问题记录）。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">3</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">开发与按需调用</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    调用网易 Py 脚本或 API 前，务必先在知识库中检索确认；如果一个思路尝试很多次无果，请果断记录在搜索日志里。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">4</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">计入问题记录</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    在遭遇 Bug 时，于问题记录中详细登记：错误现象、每一次尝试的方法与结果、以及最终解决问题的核心手段。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">5</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">原子化原子日志 (Atomic Logging)</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    严禁将所有日志塞进一个文件。必须为每一个功能或 Bug 命名（如：<code class="text-indigo-300">夜视贴图渲染</code>），并确保在 <code class="text-indigo-300">开发日志/</code> 文件夹下生成同名 MD 文件。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">6</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">文件名级交叉审计</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    系统会自动将 <code class="text-indigo-300">开发日志/Module.md</code> 与 <code class="text-indigo-300">问题记录/Module.md</code> 进行对齐。若该功能仍存在未闭环报错，固化流程将被强制拦截。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">7</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">人工状态标记</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    人类可在“工作区记录”视图中手动标记某个记录为<strong class="text-rose-400">“不可信”</strong>。被标记的记录将永久失去入库资格，防止错误经验污染主脑。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 flex items-center justify-center font-black flex-shrink-0">8</span>
+                            <div>
+                                <h4 class="font-bold text-slate-300">人工最终审批 (Human Audit)</h4>
+                                <p class="text-slate-400 mt-1 text-[11px] leading-relaxed">
+                                    所有的物理入库动作必须通过“记忆审批”完成。在这里，您可以过滤废话、提纯逻辑，确保只有高质量经验才进入长期知识库。
+                                </p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 💡 视图 1: 记忆审批 -->
+        <div id="view-audit" class="p-6 grid grid-cols-12 gap-6 h-full overflow-hidden">
+            <!-- 左侧：待审批列表 -->
+            <section class="col-span-4 flex flex-col h-full overflow-hidden bg-slate-950 rounded-2xl border border-slate-800 p-5">
+                <div class="flex items-center justify-between mb-4 border-b border-slate-800/60 pb-3">
+                    <h2 class="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                        <i class="fa-solid fa-hourglass-half text-indigo-400"></i> 待处理固化提案
+                    </h2>
+                    <span id="pending-count" class="bg-indigo-950 text-indigo-400 border border-indigo-800/40 px-2.5 py-0.5 rounded-lg text-xs font-black">0</span>
+                </div>
+                <div id="pending-list" class="space-y-3 flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                    <!-- Loaded dynamically -->
+                </div>
+            </section>
+
+            <!-- 右侧：详情预览与审批 -->
+            <section class="col-span-8 flex flex-col h-full overflow-hidden">
+                <div id="detail-panel" class="hidden h-full flex flex-col">
+                    <div class="bg-slate-950 rounded-2xl p-6 shadow-sm border border-slate-800 h-full flex flex-col overflow-hidden">
+                        <div class="flex items-start justify-between mb-4 border-b border-slate-800/60 pb-4">
+                            <div class="space-y-1 overflow-hidden">
+                                <span id="detail-type" class="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"></span>
+                                <h3 id="detail-title" class="text-base font-black text-slate-200 leading-tight truncate"></h3>
+                            </div>
+                            <div class="flex gap-2 flex-shrink-0">
+                                <button onclick="rejectSolidify()" class="p-2.5 bg-rose-950/40 text-rose-400 hover:bg-rose-950 border border-rose-900/30 rounded-xl transition-all" title="忽略该记录">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                                <button onclick="approveSolidifyDirect()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 text-xs">
+                                    <i class="fa-solid fa-check"></i> 立即物理固化入库
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-grow bg-slate-900 rounded-xl p-5 overflow-hidden relative">
+                            <div class="absolute top-3 right-4 text-[9px] font-mono text-slate-500">PREVIEW / SUMMARY CONTENT</div>
+                            <pre id="detail-content" class="text-indigo-300 font-mono text-xs leading-relaxed whitespace-pre-wrap h-full overflow-y-auto pr-3 custom-scrollbar"></pre>
+                        </div>
+                        
+                        <div class="mt-4 p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex gap-3 items-center">
+                            <i class="fa-solid fa-circle-info text-amber-500 text-lg flex-shrink-0"></i>
+                            <p class="text-xs text-slate-400 font-medium italic">控制塔会直接提取日志固化存入 Library，并在向量库中运行增量打包（Mine）任务。你也可以在“记忆宫殿”中手动对目录进行打包。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="detail-empty" class="h-full flex flex-col items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 shadow-sm">
+                    <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 border border-slate-800">
+                        <i class="fa-solid fa-fingerprint text-3xl text-slate-700"></i>
+                    </div>
+                    <h3 class="text-sm font-black text-slate-400">请选择一个提案进行审查</h3>
+                    <p class="text-xs text-slate-500 mt-1">在这里，您可以决定哪些经验值得进入 Astell 的长期向量记忆中。</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- 💡 视图 4: 工作区记录 -->
+        <div id="view-workspace" class="hidden p-6 flex flex-col h-full overflow-hidden">
+            <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-base font-black text-white">工作区记录 (Workspace Records)</h2>
+                    <p class="text-xs text-slate-400">实时监控当前项目的原子化日志与报错，并进行交叉审计</p>
+                </div>
+                <button onclick="loadWorkspaceModules()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
+                <!-- 左侧模块列表 -->
+                <div class="col-span-4 bg-slate-950 rounded-2xl p-5 border border-slate-800 overflow-y-auto shadow-sm custom-scrollbar">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">功能模块 / 故障点</h3>
+                    <div id="workspace-module-list" class="space-y-2">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+                
+                <!-- 右侧详情与打标 -->
+                <div class="col-span-8 flex flex-col h-full overflow-hidden">
+                    <div id="workspace-detail-panel" class="hidden h-full flex flex-col">
+                        <div class="bg-slate-950 rounded-2xl p-6 shadow-sm border border-slate-800 h-full flex flex-col overflow-hidden">
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-800/60 pb-4">
+                                <div>
+                                    <h3 id="ws-detail-title" class="text-base font-black text-slate-200"></h3>
+                                    <div id="ws-status-badges" class="flex gap-2 mt-1"></div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btn-mark-untrustworthy" class="px-4 py-2 bg-rose-900/30 text-rose-400 hover:bg-rose-900 border border-rose-800/50 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                                        <i class="fa-solid fa-shield-virus"></i> 标记为不可信
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 flex-grow overflow-hidden">
+                                <div class="flex flex-col overflow-hidden">
+                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">📜 开发日志</span>
+                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
+                                        <pre id="ws-dev-content" class="text-indigo-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col overflow-hidden">
+                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">⚠️ 问题记录</span>
+                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
+                                        <pre id="ws-prob-content" class="text-rose-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="workspace-empty" class="h-full flex flex-col items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 shadow-sm text-slate-500">
+                        <i class="fa-solid fa-microchip text-4xl mb-3 opacity-20"></i>
+                        <p class="text-xs font-bold">请选择一个模块查看详情</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 💡 视图 2: 记忆宫殿 -->
+        <div id="view-library" class="hidden p-6 flex-col h-full overflow-hidden">
+            <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-base font-black text-white">记忆宫殿 (Astell Library)</h2>
+                    <p class="text-xs text-slate-400">物理存储的所有固化记忆与知识分区 (Wings)</p>
+                </div>
+                <button onclick="loadLibraryTree()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors" title="刷新文件树">
+                    <i class="fa-solid fa-rotate-right text-base"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
+                <!-- 左侧文件树 -->
+                <div class="col-span-4 bg-slate-950 rounded-2xl p-5 border border-slate-800 overflow-y-auto shadow-sm custom-scrollbar" id="library-tree-panel">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">知识文件树</h3>
+                    <div id="library-tree" class="space-y-1"></div>
+                </div>
+                <!-- 右侧文件预览 -->
+                <div class="col-span-8 bg-slate-950 rounded-2xl p-6 border border-slate-800 flex flex-col overflow-hidden shadow-sm">
+                    <div id="lib-preview-header" class="mb-4 hidden border-b border-slate-800 pb-3">
+                        <span class="text-[9px] font-black text-indigo-400 uppercase tracking-wider font-mono" id="lib-file-path"></span>
+                        <h4 class="text-sm font-black text-slate-200" id="lib-file-name"></h4>
+                    </div>
+                    <div class="flex-grow bg-slate-900 rounded-xl p-5 overflow-hidden relative">
+                        <pre id="lib-content" class="text-slate-300 font-mono text-xs h-full overflow-y-auto whitespace-pre-wrap pr-3 custom-scrollbar"></pre>
+                        <div id="lib-empty" class="h-full flex flex-col items-center justify-center text-slate-500">
+                            <i class="fa-solid fa-book-open text-3xl mb-3 opacity-30"></i>
+                            <p class="text-xs font-bold">选择一个文件以预览内容</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 💡 视图 4: 工作区记录 -->
+        <div id="view-workspace" class="hidden p-6 flex flex-col h-full overflow-hidden">
+            <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-base font-black text-white">工作区记录 (Workspace Records)</h2>
+                    <p class="text-xs text-slate-400">实时监控当前项目的原子化日志与报错，并进行交叉审计</p>
+                </div>
+                <button onclick="loadWorkspaceModules()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
+                <!-- 左侧模块列表 -->
+                <div class="col-span-4 bg-slate-950 rounded-2xl p-5 border border-slate-800 overflow-y-auto shadow-sm custom-scrollbar">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">功能模块 / 故障点</h3>
+                    <div id="workspace-module-list" class="space-y-2">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+                
+                <!-- 右侧详情与打标 -->
+                <div class="col-span-8 flex flex-col h-full overflow-hidden">
+                    <div id="workspace-detail-panel" class="hidden h-full flex flex-col">
+                        <div class="bg-slate-950 rounded-2xl p-6 shadow-sm border border-slate-800 h-full flex flex-col overflow-hidden">
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-800/60 pb-4">
+                                <div>
+                                    <h3 id="ws-detail-title" class="text-base font-black text-slate-200"></h3>
+                                    <div id="ws-status-badges" class="flex gap-2 mt-1"></div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btn-mark-untrustworthy" class="px-4 py-2 bg-rose-900/30 text-rose-400 hover:bg-rose-900 border border-rose-800/50 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                                        <i class="fa-solid fa-shield-virus"></i> 标记为不可信
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 flex-grow overflow-hidden">
+                                <div class="flex flex-col overflow-hidden">
+                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">📜 开发日志</span>
+                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
+                                        <pre id="ws-dev-content" class="text-indigo-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col overflow-hidden">
+                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">⚠️ 问题记录</span>
+                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
+                                        <pre id="ws-prob-content" class="text-rose-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="workspace-empty" class="h-full flex flex-col items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 shadow-sm text-slate-500">
+                        <i class="fa-solid fa-microchip text-4xl mb-3 opacity-20"></i>
+                        <p class="text-xs font-bold">请选择一个模块查看详情</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 🌟 Project Switch Modal -->
+    <div id="switch-project-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-fade-in">
+        <div class="bg-slate-950 border border-slate-800 w-[460px] p-6 rounded-2xl shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white"><i class="fa-solid fa-folder-open text-indigo-400 mr-2"></i> 切换/对接新项目目录</h3>
+                <button onclick="hideSwitchProjectModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3.5 text-xs">
+                <div>
+                    <label class="block text-slate-400 font-bold mb-1.5">项目物理路径 (Windows 路径)</label>
+                    <input type="text" id="modal-proj-path" placeholder="D:\MyMCProjects\AwesomeMod" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 font-bold mb-1.5">项目前缀 (例如 MyMod, 自动对接开发日志前缀)</label>
+                    <input type="text" id="modal-proj-prefix" placeholder="留空则自动根据文件夹推断" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="modal-proj-is-mc" checked class="w-4 h-4 bg-slate-900 rounded border-slate-800 text-indigo-600 focus:ring-0">
+                    <label for="modal-proj-is-mc" class="text-slate-400">项目属于网易 Minecraft 开发项目 (执行开发留痕规则)</label>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button onclick="hideSwitchProjectModal()" class="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold rounded-xl text-slate-300">取消</button>
+                <button onclick="executeSwitchProject()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/10">确定切换并对接</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Module script -->
+    <script type="module" src="ui/js/main.js"></script>
+</body>
+</html>
