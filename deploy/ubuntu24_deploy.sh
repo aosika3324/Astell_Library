@@ -11,11 +11,14 @@ ENV_FILE="${ENV_FILE:-${ENV_DIR}/astell.env}"
 
 ENABLE_NGINX="${ENABLE_NGINX:-0}"
 ENABLE_BASIC_AUTH="${ENABLE_BASIC_AUTH:-0}"
+ENABLE_APP_AUTH="${ENABLE_APP_AUTH:-${ENABLE_BASIC_AUTH}}"
 ENABLE_UFW="${ENABLE_UFW:-0}"
 SERVER_NAME="${SERVER_NAME:-_}"
 NGINX_PORT="${NGINX_PORT:-80}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-astell}"
 BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-}"
+ASTELL_AUTH_USER="${ASTELL_AUTH_USER:-${BASIC_AUTH_USER}}"
+ASTELL_AUTH_PASSWORD_SHA256="${ASTELL_AUTH_PASSWORD_SHA256:-}"
 
 if [[ "${ENABLE_NGINX}" == "1" && -z "${ASTELL_UI_HOST:-}" ]]; then
   ASTELL_UI_HOST="127.0.0.1"
@@ -43,6 +46,20 @@ need_cmd() {
   }
 }
 
+ensure_auth_secret() {
+  if [[ "${ENABLE_APP_AUTH}" != "1" ]]; then
+    return
+  fi
+  if [[ -n "${ASTELL_AUTH_PASSWORD_SHA256}" ]]; then
+    return
+  fi
+  if [[ -z "${BASIC_AUTH_PASSWORD}" ]]; then
+    BASIC_AUTH_PASSWORD="$(openssl rand -base64 18)"
+    log "Generated BASIC_AUTH_PASSWORD for ${BASIC_AUTH_USER}: ${BASIC_AUTH_PASSWORD}"
+  fi
+  ASTELL_AUTH_PASSWORD_SHA256="$(printf '%s' "${BASIC_AUTH_PASSWORD}" | sha256sum | awk '{print $1}')"
+}
+
 write_env_file() {
   install -d -m 0755 "${ENV_DIR}"
   cat > "${ENV_FILE}" <<EOF
@@ -55,6 +72,10 @@ ASTELL_CONTROL_DB=${INSTALL_DIR}/mempalace_db/astell_control.db
 ASTELL_UI_HOST=${ASTELL_UI_HOST}
 ASTELL_UI_PORT=${ASTELL_UI_PORT}
 ASTELL_OPEN_BROWSER=0
+ASTELL_AUTH_ENABLED=${ENABLE_APP_AUTH}
+ASTELL_AUTH_USER=${ASTELL_AUTH_USER}
+ASTELL_AUTH_PASSWORD_SHA256=${ASTELL_AUTH_PASSWORD_SHA256}
+ASTELL_AUTH_REALM=Astell Library
 PYTHONUNBUFFERED=1
 EOF
   chmod 0644 "${ENV_FILE}"
@@ -102,10 +123,7 @@ write_nginx_site() {
   local site="/etc/nginx/sites-available/${APP_NAME}.conf"
   local auth_lines=""
   if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
-    if [[ -z "${BASIC_AUTH_PASSWORD}" ]]; then
-      BASIC_AUTH_PASSWORD="$(openssl rand -base64 18)"
-      log "Generated BASIC_AUTH_PASSWORD for ${BASIC_AUTH_USER}: ${BASIC_AUTH_PASSWORD}"
-    fi
+    ensure_auth_secret
     htpasswd -bc "/etc/nginx/${APP_NAME}.htpasswd" "${BASIC_AUTH_USER}" "${BASIC_AUTH_PASSWORD}"
     auth_lines=$'        auth_basic "Astell Library";\n        auth_basic_user_file /etc/nginx/'"${APP_NAME}"$'.htpasswd;'
   fi
@@ -125,6 +143,7 @@ ${auth_lines}
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Authorization \$http_authorization;
     }
 }
 EOF
@@ -194,6 +213,8 @@ main() {
     sentence-transformers
   "${PYTHON_BIN}" -m pip install -e "${INSTALL_DIR}/mempalace-develop"
 
+  ensure_auth_secret
+
   log "Writing runtime environment"
   write_env_file
   chown root:root "${ENV_FILE}"
@@ -237,7 +258,7 @@ main() {
   if [[ "${health_host}" == "0.0.0.0" || "${health_host}" == "::" || "${health_host}" == "localhost" ]]; then
     health_host="127.0.0.1"
   fi
-  local health_url="http://${health_host}:${ASTELL_UI_PORT}/api/status"
+  local health_url="http://${health_host}:${ASTELL_UI_PORT}/healthz"
   for _ in $(seq 1 30); do
     if curl -fsS "${health_url}" >/dev/null; then
       break

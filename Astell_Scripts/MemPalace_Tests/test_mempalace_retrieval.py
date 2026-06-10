@@ -1,9 +1,14 @@
 import sys
-import os
 from pathlib import Path
 
 # 把 mempalace 源文件加入环境
-sys.path.insert(0, r"D:\Astell_Library\mempalace-develop")
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astell_config import LIBRARY_PATH, MEMPALACE_DB, add_runtime_paths
+
+add_runtime_paths()
 
 try:
     from mempalace.palace import get_collection, get_closets_collection
@@ -13,16 +18,16 @@ except ImportError as e:
     print("找不到 MemPalace:", e)
     sys.exit(1)
 
-db_path = r"D:\Astell_Library\mempalace_db"
+db_path = str(MEMPALACE_DB)
 drawers_col = get_collection(db_path)
 closets_col = get_closets_collection(db_path)
 
 print("==== 步骤1：矿工(Miner)下井 ====")
 # 我们把刚刚写的 hall_fact.md、hall_events.md、和 closet 的 AAKK 放进记忆宫殿
 files_to_mine = [
-    Path(r"Library\wing_Astell_Architecture\hall\hall_fact.md"),
-    Path(r"Library\wing_Astell_Architecture\hall\hall_events.md"),
-    Path(r"Library\wing_Astell_Architecture\room_Architect\closet\ACT1_Architecture_Proof.md")
+    LIBRARY_PATH / "wing_Astell_Architecture" / "hall" / "hall_fact.md",
+    LIBRARY_PATH / "wing_Astell_Architecture" / "hall" / "hall_events.md",
+    LIBRARY_PATH / "wing_Astell_Architecture" / "room_Architect" / "closet" / "ACT1_Architecture_Proof.md"
 ]
 
 for p in files_to_mine:
@@ -31,7 +36,7 @@ for p in files_to_mine:
         # wing 指定为 Astell_Architecture
         # agent 填入 Astell_Overmind
         # 因为我们是手动归档，提供一个虚拟的 room 也可以
-        process_file(p, Path("Library"), drawers_col, "wing_Astell_Architecture", [{"name": "Architect_Room"}], "Astell_Overmind", False, closets_col)
+        process_file(p, LIBRARY_PATH, drawers_col, "wing_Astell_Architecture", [{"name": "Architect_Room"}], "Astell_Overmind", False, closets_col)
     else:
         print(f"文件不存在: {p}")
 

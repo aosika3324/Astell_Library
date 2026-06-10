@@ -1,7 +1,7 @@
 services:
   astell:
     build:
-      context: ../..
+      context: .
       dockerfile: Dockerfile
     image: astell-library:latest
     restart: unless-stopped
@@ -19,50 +19,24 @@ services:
       ASTELL_OPEN_BROWSER: 0
       ASTELL_AUTH_ENABLED: ${ASTELL_AUTH_ENABLED:-1}
       ASTELL_AUTH_USER: ${ASTELL_AUTH_USER:-astell}
-      ASTELL_AUTH_PASSWORD_SHA256: ${ASTELL_AUTH_PASSWORD_SHA256:?Set ASTELL_AUTH_PASSWORD_SHA256 in .env by running ./init_env.sh}
+      ASTELL_AUTH_PASSWORD_SHA256: ${ASTELL_AUTH_PASSWORD_SHA256:?Set ASTELL_AUTH_PASSWORD_SHA256 in .env or run deploy/start_service.sh}
       ASTELL_AUTH_REALM: ${ASTELL_AUTH_REALM:-Astell Library}
-      ASTELL_CORS_ORIGINS: ${ASTELL_CORS_ORIGINS:?Set ASTELL_CORS_ORIGINS in .env by running ./init_env.sh}
+      ASTELL_CORS_ORIGINS: ${ASTELL_CORS_ORIGINS:-http://localhost:8080}
+    ports:
+      - "${ASTELL_PUBLISHED_PORT:-8080}:8080"
     volumes:
       - astell_mempalace_db:/data/mempalace_db
       - astell_library:/data/Library
       - astell_comm:/data/COMM_BUFFER
-      - ./projects:/projects
-    expose:
-      - "8080"
+      - ./deploy/container/projects:/projects
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-    networks:
-      - astell_internal
-
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    depends_on:
-      astell:
-        condition: service_healthy
-    env_file:
-      - .env
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - astell_internal
 
 volumes:
   astell_mempalace_db:
   astell_library:
   astell_comm:
-  caddy_data:
-  caddy_config:
-
-networks:
-  astell_internal:
-    driver: bridge

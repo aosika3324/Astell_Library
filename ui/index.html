@@ -35,6 +35,10 @@
                 <i class="fa-solid fa-laptop-code text-lg"></i>
                 <span>工作区记录</span>
             </button>
+            <button onclick="switchView('modsdk')" id="nav-modsdk" class="tab-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
+                <i class="fa-solid fa-toolbox text-lg"></i>
+                <span>官方 SDK</span>
+            </button>
             <button onclick="switchView('guide')" id="nav-guide" class="tab-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all group font-bold text-sm">
                 <i class="fa-solid fa-book-open text-lg"></i>
                 <span>指令与规范 (Guide)</span>
@@ -443,64 +447,108 @@
             </div>
         </div>
 
-        <!-- 💡 视图 4: 工作区记录 -->
-        <div id="view-workspace" class="hidden p-6 flex flex-col h-full overflow-hidden">
+        <!-- 💡 视图 5: 官方 SDK 工具翼 -->
+        <div id="view-modsdk" class="hidden p-6 flex flex-col h-full overflow-hidden">
             <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-4">
                 <div>
-                    <h2 class="text-base font-black text-white">工作区记录 (Workspace Records)</h2>
-                    <p class="text-xs text-slate-400">实时监控当前项目的原子化日志与报错，并进行交叉审计</p>
+                    <h2 class="text-base font-black text-white">官方 SDK 工具翼 (ModSDK Wing)</h2>
+                    <p class="text-xs text-slate-400">检索官方资料、生成资源草稿、审查 ModSDK 代码；结果不会自动写入项目。</p>
                 </div>
-                <button onclick="loadWorkspaceModules()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
-                    <i class="fa-solid fa-rotate-right"></i>
+                <button onclick="loadModsdkPractices()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors" title="读取最佳实践">
+                    <i class="fa-solid fa-scale-balanced text-base"></i>
                 </button>
             </div>
-            
+
             <div class="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
-                <!-- 左侧模块列表 -->
-                <div class="col-span-4 bg-slate-950 rounded-2xl p-5 border border-slate-800 overflow-y-auto shadow-sm custom-scrollbar">
-                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">功能模块 / 故障点</h3>
-                    <div id="workspace-module-list" class="space-y-2">
-                        <!-- Loaded dynamically -->
-                    </div>
-                </div>
-                
-                <!-- 右侧详情与打标 -->
-                <div class="col-span-8 flex flex-col h-full overflow-hidden">
-                    <div id="workspace-detail-panel" class="hidden h-full flex flex-col">
-                        <div class="bg-slate-950 rounded-2xl p-6 shadow-sm border border-slate-800 h-full flex flex-col overflow-hidden">
-                            <div class="flex items-center justify-between mb-4 border-b border-slate-800/60 pb-4">
-                                <div>
-                                    <h3 id="ws-detail-title" class="text-base font-black text-slate-200"></h3>
-                                    <div id="ws-status-badges" class="flex gap-2 mt-1"></div>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button id="btn-mark-untrustworthy" class="px-4 py-2 bg-rose-900/30 text-rose-400 hover:bg-rose-900 border border-rose-800/50 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
-                                        <i class="fa-solid fa-shield-virus"></i> 标记为不可信
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4 flex-grow overflow-hidden">
-                                <div class="flex flex-col overflow-hidden">
-                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">📜 开发日志</span>
-                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
-                                        <pre id="ws-dev-content" class="text-indigo-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
-                                    </div>
-                                </div>
-                                <div class="flex flex-col overflow-hidden">
-                                    <span class="text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">⚠️ 问题记录</span>
-                                    <div class="flex-grow bg-slate-900 rounded-xl p-4 overflow-hidden relative border border-slate-800">
-                                        <pre id="ws-prob-content" class="text-rose-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap h-full overflow-y-auto custom-scrollbar"></pre>
-                                    </div>
-                                </div>
-                            </div>
+                <section class="col-span-4 bg-slate-950 rounded-2xl border border-slate-800 p-5 overflow-y-auto custom-scrollbar space-y-5">
+                    <div class="space-y-3">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass text-indigo-400"></i> 官方资料检索
+                        </h3>
+                        <input id="modsdk-query" type="text" placeholder="例如 CreateEngineEntityByTypeStr / 方块组件" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                        <div class="grid grid-cols-3 gap-2">
+                            <select id="modsdk-scope" class="col-span-1 bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-slate-300 focus:outline-none">
+                                <option value="docs">docs</option>
+                                <option value="api">api</option>
+                                <option value="event">event</option>
+                            </select>
+                            <button onclick="searchModsdkDocs()" class="col-span-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold">
+                                检索
+                            </button>
                         </div>
                     </div>
-                    <div id="workspace-empty" class="h-full flex flex-col items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 shadow-sm text-slate-500">
-                        <i class="fa-solid fa-microchip text-4xl mb-3 opacity-20"></i>
-                        <p class="text-xs font-bold">请选择一个模块查看详情</p>
+
+                    <div class="space-y-3 pt-4 border-t border-slate-800">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <i class="fa-solid fa-cubes text-indigo-400"></i> 资源模板草稿
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="modsdk-template-kind" class="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-slate-300 focus:outline-none">
+                                <option value="item">item</option>
+                                <option value="block">block</option>
+                                <option value="entity">entity</option>
+                                <option value="recipe">recipe</option>
+                                <option value="loot_table">loot_table</option>
+                                <option value="spawn_rule">spawn_rule</option>
+                                <option value="food">food</option>
+                                <option value="sword">sword</option>
+                                <option value="pickaxe">pickaxe</option>
+                                <option value="axe">axe</option>
+                                <option value="shovel">shovel</option>
+                                <option value="hoe">hoe</option>
+                                <option value="armor">armor</option>
+                                <option value="bow">bow</option>
+                                <option value="throwable">throwable</option>
+                            </select>
+                            <input id="modsdk-template-namespace" type="text" value="astell" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <input id="modsdk-template-id" type="text" placeholder="night_vision_cookie" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                        <input id="modsdk-template-name" type="text" placeholder="显示名，可留空" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                        <button onclick="generateModsdkTemplateUi()" class="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-bold">
+                            生成草稿
+                        </button>
                     </div>
-                </div>
+
+                    <div class="space-y-3 pt-4 border-t border-slate-800">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <i class="fa-solid fa-code text-indigo-400"></i> 代码审查
+                        </h3>
+                        <input id="modsdk-review-filename" type="text" value="snippet.py" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                        <textarea id="modsdk-review-code" class="w-full h-32 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 terminal-font custom-scrollbar focus:outline-none focus:border-indigo-500" placeholder="粘贴 ModSDK Python 代码"></textarea>
+                        <button onclick="reviewModsdkCodeUi()" class="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-bold">
+                            审查代码
+                        </button>
+                    </div>
+
+                    <div class="space-y-3 pt-4 border-t border-slate-800">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-indigo-400"></i> 最佳实践
+                        </h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            <select id="modsdk-practice-topic" class="col-span-2 bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-slate-300 focus:outline-none">
+                                <option value="general">general</option>
+                                <option value="event">event</option>
+                                <option value="performance">performance</option>
+                                <option value="python2">python2</option>
+                                <option value="resource">resource</option>
+                            </select>
+                            <button onclick="loadModsdkPractices()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-bold">
+                                读取
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="col-span-8 bg-slate-950 rounded-2xl border border-slate-800 p-6 flex flex-col overflow-hidden">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                        <div>
+                            <h3 class="text-sm font-black text-slate-200">工具翼输出</h3>
+                            <p class="text-[10px] text-slate-500">把有价值的结论用于实现，然后通过开发日志固化为项目经验。</p>
+                        </div>
+                        <span class="text-[9px] font-black px-2 py-1 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-900">READ ONLY</span>
+                    </div>
+                    <pre id="modsdk-output" class="flex-grow bg-slate-900 rounded-xl border border-slate-800 p-5 text-slate-300 text-xs terminal-font whitespace-pre-wrap overflow-y-auto custom-scrollbar">选择左侧工具开始。</pre>
+                </section>
             </div>
         </div>
 

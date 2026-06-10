@@ -9,5 +9,6 @@ export const state = {
     expandedPaths: new Set(),
     libraryTreeData: [],
     workspaceModules: [],
-    selectedWsIndex: -1
+    selectedWsIndex: -1,
+    modsdkLastResult: null
 };

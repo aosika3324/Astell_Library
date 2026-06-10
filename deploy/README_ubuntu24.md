@@ -58,8 +58,11 @@ sudo systemctl restart astell-control-tower
 Health check:
 
 ```bash
-curl http://127.0.0.1:8080/api/status
+curl http://127.0.0.1:8080/healthz
 ```
+
+Use `/api/status` only after authentication is configured; it returns project
+state and should not be treated as a public liveness probe.
 
 ## MCP Usage
 

@@ -15,6 +15,15 @@ seed_dir "/app/Library" "${ASTELL_KNOWLEDGE_LIBRARY:-/data/Library}"
 seed_dir "/app/mempalace_db" "${MEMPALACE_DB:-/data/mempalace_db}"
 seed_dir "/app/COMM_BUFFER" "${ASTELL_COMM_BUFFER:-/data/COMM_BUFFER}"
 
+if [[ "$(id -u)" == "0" ]]; then
+  chown -R astell:astell \
+    "${ASTELL_KNOWLEDGE_LIBRARY:-/data/Library}" \
+    "${MEMPALACE_DB:-/data/mempalace_db}" \
+    "${ASTELL_COMM_BUFFER:-/data/COMM_BUFFER}" \
+    /projects
+  exec gosu astell "$0" "$@"
+fi
+
 python /app/mempalace_db/init_sqlite.py
 
 exec "$@"

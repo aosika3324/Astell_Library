@@ -1,9 +1,16 @@
 import sys
-import os
-sys.path.insert(0, r"D:\Astell_Library\mempalace-develop")
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astell_config import MEMPALACE_DB, add_runtime_paths
+
+add_runtime_paths()
 from mempalace.palace import get_collection
 
-db_path = r"D:\Astell_Library\mempalace_db"
+db_path = str(MEMPALACE_DB)
 col = get_collection(db_path)
 
 query = "CreateEngineEntityByTypeStr"

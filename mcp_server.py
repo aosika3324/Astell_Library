@@ -25,6 +25,12 @@ try:
     from mempalace.palace import get_collection, get_closets_collection
     from mempalace.miner import process_file, mine
     from mempalace_db.db_helper import add_project
+    from modsdk_wing import (
+        generate_modsdk_template as generate_modsdk_template_data,
+        get_modsdk_best_practices as get_modsdk_best_practices_data,
+        review_modsdk_code as review_modsdk_code_data,
+        search_modsdk_official as search_modsdk_official_data,
+    )
 except ImportError as e:
     print(f"Error: Could not import MemPalace from {MEMPALACE_SRC}. Details: {e}")
     sys.exit(1)
@@ -244,6 +250,7 @@ def list_knowledge_inventory():
         "wing_Project_Memory": "项目级研发记忆：包含所有已结项或开发中的项目日志、架构决策及具体逻辑实现。",
         "wing_Special_Operation_Memory": "专项操作记忆：针对高性能渲染优化、复杂 AI 行为树、网络同步等特定技术攻关的成功案例。",
         "wing_Official_SDK": "网易官方接口文档、事件定义、组件用法（来自 interface.json 和官方手册）。",
+        "ModSDK_Official_Tools": "官方 SDK 工具翼：面向网易 MC 的官方资料检索、基础资源模板生成与代码审查辅助。",
         "wing_Stark": "StarkEngine 高级引擎接口、开发规范及特定功能实现。",
         "wing_mod_*": "特定模组的增量记忆（通常在开发中实时固化）。"
     }
@@ -598,6 +605,89 @@ def retrieve_astell_knowledge(query: str, current_project: str = None, strict_mo
 
     output.append("\n💡 提示：如果以上内容解决了你的问题，请直接应用。如果未找到目标 API，请考虑库中可能尚未收录该特定细节。")
     return "\n".join(output)
+
+
+def _format_modsdk_search(data):
+    results = data.get("results", [])
+    if not results:
+        return f"📘 [ModSDK 官方工具翼] 未找到与 `{data.get('query')}` 相关的官方资料。"
+
+    lines = [
+        f"📘 [ModSDK 官方工具翼] 查询: {data.get('query')} | scope={data.get('scope')}",
+        "",
+    ]
+    for idx, item in enumerate(results, 1):
+        lines.append(f"{idx}. {item['path']} (score={item['score']})")
+        lines.append(item["snippet"])
+        lines.append("-" * 30)
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def search_modsdk_official(query: str, scope: str = "docs", limit: int = 5):
+    """
+    [官方 SDK 工具翼 / 检索]：从本地 wing_Official_SDK 中检索网易 MC / Bedrock 官方资料。
+    scope 可用 docs/api/event；该工具只负责查官方资料，不写项目日志。
+    """
+    data = search_modsdk_official_data(query=query, scope=scope, limit=limit)
+    return _format_modsdk_search(data)
+
+
+@mcp.tool()
+def generate_modsdk_template(kind: str, identifier: str, namespace: str = "astell", display_name: str = None):
+    """
+    [官方 SDK 工具翼 / 模板]：生成常见行为包与资源包 JSON 草稿。
+    kind 支持 item/block/entity/recipe/loot_table/spawn_rule/food/sword/pickaxe/axe/shovel/hoe/armor/bow/throwable。
+    注意：该工具只返回文件草稿，不直接写盘；落地后必须 register_resource_id 并 record_astell_trace。
+    """
+    try:
+        data = generate_modsdk_template_data(kind, identifier, namespace, display_name)
+    except ValueError as e:
+        return f"❌ 模板生成失败: {e}"
+
+    lines = [
+        f"🧩 [ModSDK 模板草稿] {data['kind']} -> {data['identifier']}",
+        f"显示名: {data['display_name']}",
+        "",
+    ]
+    for file in data["files"]:
+        lines.append(f"### {file['path']}")
+        lines.append("```json" if file["path"].endswith(".json") else "```text")
+        lines.append(file["content"])
+        lines.append("```")
+    lines.append("后续动作:")
+    lines.extend(f"- {step}" for step in data["next_steps"])
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def review_modsdk_code(code: str, filename: str = "snippet.py"):
+    """
+    [官方 SDK 工具翼 / 审查]：按网易 MC ModSDK 常见坑检查代码片段，尤其关注 Python 2.7、事件注册和高频路径。
+    """
+    data = review_modsdk_code_data(code)
+    lines = [f"🔎 [ModSDK 代码审查] {filename}", data["summary"], ""]
+    if data["findings"]:
+        for finding in data["findings"]:
+            lines.append(f"- [{finding['severity']}] {finding['title']}: {finding['detail']}")
+    else:
+        lines.append("- 未发现明显规则命中。")
+    lines.append("")
+    lines.append("建议基线:")
+    lines.extend(f"- {rule}" for rule in data["best_practices"])
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def get_modsdk_best_practices(topic: str = "general"):
+    """
+    [官方 SDK 工具翼 / 规范]：获取网易 MC ModSDK 开发建议。topic 可用 general/event/performance/python2/resource。
+    """
+    data = get_modsdk_best_practices_data(topic)
+    lines = [f"📏 [ModSDK 最佳实践] topic={data['topic']}"]
+    lines.extend(f"- {rule}" for rule in data["rules"])
+    lines.append(f"可用 topic: {', '.join(data['available_topics'])}")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

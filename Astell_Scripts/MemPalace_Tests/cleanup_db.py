@@ -1,11 +1,17 @@
 import sys
-import os
+from pathlib import Path
 
-sys.path.insert(0, r'D:\Astell_Library\mempalace-develop')
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astell_config import MEMPALACE_DB, add_runtime_paths
+
+add_runtime_paths()
 from mempalace.palace import get_collection
 
 def clean_and_fix_db():
-    db_path = r'D:\Astell_Library\mempalace_db'
+    db_path = str(MEMPALACE_DB)
     print(f"Connecting to ChromaDB at {db_path}...")
     col = get_collection(db_path)
     
@@ -35,7 +41,7 @@ def clean_and_fix_db():
         current_wing = meta.get('wing', '')
         if current_wing == 'Astell_Overmind':
             # Extract the real wing name from the source file path
-            # Example path: D:\Astell_Library\Library\wing_Official_SDK\...
+            # Example path: <Astell_Library>\Library\wing_Official_SDK\...
             if 'wing_Official_SDK' in source_file:
                 meta['wing'] = 'wing_Official_SDK'
                 to_update_ids.append(id_)

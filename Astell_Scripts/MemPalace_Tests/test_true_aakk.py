@@ -1,10 +1,14 @@
 import sys
-import os
 from pathlib import Path
-import json
 
 # 把 mempalace 源文件加入环境
-sys.path.insert(0, r"D:\Astell_Library\mempalace-develop")
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astell_config import LIBRARY_PATH, MEMPALACE_DB, add_runtime_paths
+
+add_runtime_paths()
 
 try:
     from mempalace.palace import get_collection, get_closets_collection
@@ -14,13 +18,13 @@ except ImportError as e:
     print("找不到 MemPalace:", e)
     sys.exit(1)
 
-db_path = r"D:\Astell_Library\mempalace_db"
+db_path = str(MEMPALACE_DB)
 drawers_col = get_collection(db_path)
 closets_col = get_closets_collection(db_path)
 
 print("==== 步骤1：矿工(Miner)下井提取正统 AAKK ====")
 # 定位子代理刚刚拷贝过来的贪吃史莱姆文件
-bio_drawer_dir = Path(r"Library\wing_mod_reference1\room_生物开发\drawer")
+bio_drawer_dir = LIBRARY_PATH / "wing_mod_reference1" / "room_生物开发" / "drawer"
 files_to_mine = list(bio_drawer_dir.rglob("*.json"))
 
 if not files_to_mine:
@@ -30,7 +34,7 @@ else:
         print(f"正在由 MemPalace 引擎自动提炼 AAKK 并挖掘: {p.name}")
         process_file(
             filepath=p, 
-            project_path=Path("Library"), 
+            project_path=LIBRARY_PATH,
             collection=drawers_col, 
             wing="wing_mod_reference1", 
             rooms=[{"name": "room_生物开发"}], 

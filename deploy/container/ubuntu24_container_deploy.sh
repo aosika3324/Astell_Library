@@ -58,7 +58,7 @@ if [[ ! -f .env || "${FORCE_REGENERATE_ENV}" == "1" ]]; then
   BASIC_AUTH_USER="${BASIC_AUTH_USER}" \
   BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD}" \
   ACME_EMAIL="${ACME_EMAIL}" \
-    ./init_env.sh
+    bash ./init_env.sh
 else
   log "Using existing ${SCRIPT_DIR}/.env. Set FORCE_REGENERATE_ENV=1 to recreate credentials."
 fi

@@ -1,12 +1,19 @@
 import os
 import json
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astell_config import ASTELL_LIBRARY_ROOT
 
 def init_project():
     print("--- [SYSTEM] 开始建立《荒野生存》中央指挥室与基础环境 ---")
     
     # 1. 建立 Evolution 跟踪文件
-    evo_dir = Path(r"D:\Astell_Library\Evolution\Wild_Survival")
+    evo_dir = Path(os.environ.get("ASTELL_WILD_SURVIVAL_EVOLUTION_DIR", ASTELL_LIBRARY_ROOT / "Evolution" / "Wild_Survival"))
     evo_dir.mkdir(parents=True, exist_ok=True)
     
     files_to_create = {
@@ -26,7 +33,10 @@ def init_project():
             print(f"已创建跟踪文件: {filename}")
             
     # 2. 建立 MC Studio 目录结构
-    mc_dir = Path(r"D:\MCStudioDownload\work\abc1135138937abc@163.com\Cpp\AddOn\acec5879fbda40c9afa51e81d5c0924a")
+    mc_dir_value = os.environ.get("ASTELL_WILD_SURVIVAL_ADDON_DIR")
+    if not mc_dir_value:
+        raise RuntimeError("请先设置 ASTELL_WILD_SURVIVAL_ADDON_DIR，指向目标 MC Studio AddOn 目录。")
+    mc_dir = Path(mc_dir_value)
     mc_dir.mkdir(parents=True, exist_ok=True)
     
     # Behavior Pack 和 Resource Pack 基础结构

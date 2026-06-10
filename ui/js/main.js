@@ -3,6 +3,7 @@ import { refreshStatus, showSwitchProjectModal, hideSwitchProjectModal, executeS
 import { renderAuditList, selectAuditItem, approveSolidifyDirect, rejectSolidify } from './audit.js';
 import { loadLibraryTree, renderLibraryTree, previewFile } from './library.js';
 import { loadWorkspaceModules, selectWorkspaceModule } from './workspace.js';
+import { generateModsdkTemplateUi, loadModsdkPractices, reviewModsdkCodeUi, searchModsdkDocs } from './modsdk.js';
 // 视图切换逻辑
 export function switchView(view) {
     state.activeView = view;
@@ -13,7 +14,7 @@ export function switchView(view) {
     if (activeBtn) activeBtn.classList.add('active');
 
     // 隐藏所有视图
-    ['guide', 'audit', 'library', 'workspace'].forEach(v => {
+    ['guide', 'audit', 'library', 'workspace', 'modsdk'].forEach(v => {
         const viewEl = document.getElementById(`view-${v}`);
         if (viewEl) viewEl.classList.add('hidden');
     });
@@ -43,6 +44,11 @@ window.previewFile = previewFile;
 
 window.loadWorkspaceModules = loadWorkspaceModules;
 window.selectWorkspaceModule = selectWorkspaceModule;
+
+window.searchModsdkDocs = searchModsdkDocs;
+window.generateModsdkTemplateUi = generateModsdkTemplateUi;
+window.reviewModsdkCodeUi = reviewModsdkCodeUi;
+window.loadModsdkPractices = loadModsdkPractices;
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {

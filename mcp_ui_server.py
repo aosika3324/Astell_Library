@@ -1,6 +1,11 @@
 import sys
 import os
+import base64
+import binascii
+import hashlib
 import json
+import secrets
+import sqlite3
 import urllib.parse
 import webbrowser
 import threading
@@ -10,7 +15,13 @@ import subprocess
 from datetime import datetime
 from typing import List, Optional
 from astell_config import (
+    ASTELL_AUTH_ENABLED,
+    ASTELL_AUTH_PASSWORD,
+    ASTELL_AUTH_PASSWORD_SHA256,
+    ASTELL_AUTH_REALM,
+    ASTELL_AUTH_USER,
     ASTELL_CORS_ORIGINS,
+    ASTELL_CONTROL_DB,
     ASTELL_LIBRARY_ROOT as ASTELL_LIBRARY_ROOT_PATH,
     ASTELL_OPEN_BROWSER,
     ASTELL_UI_HOST,
@@ -21,9 +32,9 @@ from astell_config import (
     add_runtime_paths,
 )
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -35,12 +46,76 @@ from mempalace_db.db_helper import (
     record_solidification
 )
 from mempalace_db.sync_state import sync_active_project_to_env
+from modsdk_wing import (
+    generate_modsdk_template,
+    get_modsdk_best_practices,
+    review_modsdk_code,
+    search_modsdk_official,
+)
 
 ASTELL_LIBRARY_ROOT = str(ASTELL_LIBRARY_ROOT_PATH)
 LIBRARY_PATH = str(LIBRARY_PATH_VALUE)
 MEMPALACE_DB = str(MEMPALACE_DB_PATH)
 # 初始化 FastAPI app
 app = FastAPI(title="Astell Control Tower API", version="2.0.0")
+
+if ASTELL_AUTH_ENABLED and not (ASTELL_AUTH_PASSWORD or ASTELL_AUTH_PASSWORD_SHA256):
+    raise RuntimeError(
+        "ASTELL_AUTH_PASSWORD or ASTELL_AUTH_PASSWORD_SHA256 must be set when ASTELL_AUTH_ENABLED=1"
+    )
+
+
+AUTH_EXEMPT_PATHS = {"/healthz"}
+
+
+def _auth_challenge() -> Response:
+    return Response(
+        content="Authentication required",
+        status_code=401,
+        headers={"WWW-Authenticate": f'Basic realm="{ASTELL_AUTH_REALM}"'},
+    )
+
+
+def _basic_auth_valid(header_value: str) -> bool:
+    auth_scheme, separator, auth_param = header_value.partition(" ")
+    if auth_scheme.lower() != "basic" or not separator:
+        return False
+    try:
+        decoded = base64.b64decode(auth_param.strip(), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return False
+    username, separator, password = decoded.partition(":")
+    if not separator:
+        return False
+    if not secrets.compare_digest(username, ASTELL_AUTH_USER):
+        return False
+    if ASTELL_AUTH_PASSWORD:
+        return secrets.compare_digest(password, ASTELL_AUTH_PASSWORD)
+    password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(password_hash, ASTELL_AUTH_PASSWORD_SHA256)
+
+
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next):
+    if not ASTELL_AUTH_ENABLED or request.url.path in AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+    if _basic_auth_valid(request.headers.get("Authorization", "")):
+        return await call_next(request)
+    return _auth_challenge()
+
+
+def _resolve_under(base_path: str, rel_path: str, *, must_be_file: bool = False) -> str:
+    """Resolve a user-supplied relative path and keep it inside base_path."""
+
+    base = os.path.realpath(base_path)
+    target = os.path.realpath(os.path.join(base, rel_path))
+    base_cmp = os.path.normcase(base)
+    target_cmp = os.path.normcase(target)
+    if target_cmp != base_cmp and not target_cmp.startswith(base_cmp + os.sep):
+        raise HTTPException(status_code=400, detail="路径越界")
+    if must_be_file and not os.path.isfile(target):
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return target
 
 # 挂载静态文件目录
 app.mount("/ui", StaticFiles(directory=os.path.join(ASTELL_LIBRARY_ROOT, "ui")), name="ui")
@@ -60,6 +135,28 @@ class ProjectCreate(BaseModel):
     prefix: Optional[str] = None
     is_mc_project: bool = True
 
+
+class ModsdkSearchRequest(BaseModel):
+    query: str
+    scope: str = "docs"
+    limit: int = 5
+
+
+class ModsdkTemplateRequest(BaseModel):
+    kind: str
+    identifier: str
+    namespace: str = "astell"
+    display_name: Optional[str] = None
+
+
+class ModsdkReviewRequest(BaseModel):
+    code: str
+    filename: str = "snippet.py"
+
+
+class ModsdkPracticesRequest(BaseModel):
+    topic: str = "general"
+
 # 同步初始环境
 sync_active_project_to_env()
 
@@ -77,6 +174,33 @@ def get_index_alias():
     return get_index()
 
 # --- API Endpoints ---
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz():
+    sqlite_ok = False
+    try:
+        with sqlite3.connect(str(ASTELL_CONTROL_DB)) as conn:
+            conn.execute("SELECT 1")
+        sqlite_ok = True
+    except sqlite3.Error:
+        sqlite_ok = False
+
+    checks = {
+        "library": os.path.isdir(LIBRARY_PATH),
+        "mempalace_db": os.path.isdir(MEMPALACE_DB),
+        "control_db": sqlite_ok,
+    }
+    ready = all(checks.values())
+    body = {"status": "ready" if ready else "not_ready", "checks": checks}
+    if not ready:
+        return JSONResponse(content=body, status_code=503)
+    return body
+
 
 @app.get("/api/status")
 def get_status():
@@ -205,9 +329,7 @@ def read_workspace_file(rel_path: str):
     project = get_active_project()
     if not project: raise HTTPException(status_code=400, detail="无活跃项目")
     
-    full_path = os.path.join(project["path"], rel_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+    full_path = _resolve_under(project["path"], rel_path, must_be_file=True)
     
     with open(full_path, "r", encoding="utf-8") as f:
         return {"content": f.read()}
@@ -221,15 +343,49 @@ def tag_file(req: TagRequest):
     project = get_active_project()
     if not project: raise HTTPException(status_code=400, detail="无活跃项目")
     
-    full_path = os.path.join(project["path"], req.rel_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+    full_path = _resolve_under(project["path"], req.rel_path, must_be_file=True)
         
     if req.tag == "untrustworthy":
         with open(full_path, "a", encoding="utf-8") as f:
             f.write("\n\n> ⚠️ <!-- UNTRUSTWORTHY --> **此记录已被人工标记为不可信，严禁固化。**")
             
     return {"success": True}
+
+
+@app.post("/api/modsdk/search")
+def api_modsdk_search(req: ModsdkSearchRequest):
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="查询不能为空")
+    return search_modsdk_official(req.query, scope=req.scope, limit=req.limit)
+
+
+@app.post("/api/modsdk/template")
+def api_modsdk_template(req: ModsdkTemplateRequest):
+    if not req.identifier.strip():
+        raise HTTPException(status_code=400, detail="identifier 不能为空")
+    try:
+        return generate_modsdk_template(
+            kind=req.kind,
+            identifier=req.identifier,
+            namespace=req.namespace,
+            display_name=req.display_name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/modsdk/review")
+def api_modsdk_review(req: ModsdkReviewRequest):
+    if not req.code.strip():
+        raise HTTPException(status_code=400, detail="代码不能为空")
+    result = review_modsdk_code(req.code)
+    result["filename"] = req.filename
+    return result
+
+
+@app.post("/api/modsdk/practices")
+def api_modsdk_practices(req: ModsdkPracticesRequest):
+    return get_modsdk_best_practices(req.topic)
 
 @app.get("/api/pending")
 def get_pending():
@@ -265,9 +421,7 @@ def execute_solidify(req: SolidifyRequest):
     prefix = project["prefix"]
     
     # 物理路径
-    src_full_path = os.path.join(path, req.rel_path)
-    if not os.path.exists(src_full_path):
-        raise HTTPException(status_code=404, detail="待固化文件不存在")
+    src_full_path = _resolve_under(path, req.rel_path, must_be_file=True)
 
     # 固化至统一的项目记忆分区，以项目名作为 Room
     wing_name = "wing_Project_Memory"
@@ -298,7 +452,7 @@ def execute_solidify(req: SolidifyRequest):
         
         # 如果有同名的已解决报错，也一并固化
         prob_rel_path = os.path.join(f"{prefix}_问题记录", f"{req.module_name}.md")
-        prob_full_path = os.path.join(path, prob_rel_path)
+        prob_full_path = _resolve_under(path, prob_rel_path)
         if os.path.exists(prob_full_path):
             prob_dest_filename = f"{req.module_name}_problem_{timestamp}.md"
             shutil.copy2(prob_full_path, os.path.join(target_drawer_path, prob_dest_filename))
@@ -411,8 +565,8 @@ class MineRequest(BaseModel):
 @app.post("/api/library/mine")
 def mine_wing(req: MineRequest):
     """手动对特定目录触发 mempalace 打包（向量化）"""
-    full_path = os.path.join(LIBRARY_PATH, req.wing_path)
-    if not os.path.exists(full_path):
+    full_path = _resolve_under(LIBRARY_PATH, req.wing_path)
+    if not os.path.isdir(full_path):
         raise HTTPException(status_code=400, detail="路径不存在")
     
     # 推断 wing
@@ -433,16 +587,12 @@ def mine_wing(req: MineRequest):
 
 @app.get("/api/library/read")
 def read_library_file(path: str):
-    if ".." in path or path.startswith("/") or path.startswith("\\"):
-        raise HTTPException(status_code=400, detail="Invalid path")
-    full_path = os.path.join(LIBRARY_PATH, path)
-    if os.path.exists(full_path) and os.path.isfile(full_path):
-        try:
-            with open(full_path, "r", encoding="utf-8") as f:
-                return {"content": f.read()}
-        except Exception as e:
-            return {"content": f"读取文件失败: {str(e)}"}
-    raise HTTPException(status_code=404, detail="File not found")
+    full_path = _resolve_under(LIBRARY_PATH, path, must_be_file=True)
+    try:
+        with open(full_path, "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+    except Exception as e:
+        return {"content": f"读取文件失败: {str(e)}"}
 
 # --- Server Start Logic ---
 def open_browser(url):

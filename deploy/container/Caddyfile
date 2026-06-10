@@ -15,5 +15,7 @@
         X-Frame-Options "DENY"
     }
 
-    reverse_proxy astell:8080
+    reverse_proxy astell:8080 {
+        header_up Authorization {http.request.header.Authorization}
+    }
 }

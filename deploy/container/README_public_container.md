@@ -2,6 +2,8 @@
 
 This deployment is designed for public access with no registration feature.
 Authentication is handled by Caddy Basic Auth before requests reach the app.
+The same credential is also configured in the app container as a fallback for
+accidental direct access to port `8080`.
 
 ## Architecture
 
@@ -47,7 +49,7 @@ page and no self-service signup.
 
 ```bash
 cd deploy/container
-./init_env.sh astell.example.com admin 'change-this-strong-password' it@example.com
+bash ./init_env.sh astell.example.com admin 'change-this-strong-password' it@example.com
 docker compose up -d --build
 ```
 
@@ -74,7 +76,7 @@ docker compose up -d --build
 
 ```bash
 cd deploy/container
-./init_env.sh astell.example.com admin 'new-strong-password' it@example.com
+bash ./init_env.sh astell.example.com admin 'new-strong-password' it@example.com
 docker compose up -d --force-recreate caddy
 ```
 
@@ -96,3 +98,5 @@ The project still needs the expected `resource` and `behavior` directories.
 - Use a strong password and rotate it when employees leave.
 - This is shared Basic Auth, not per-user audit login.
 - Do not publish the app container port directly; keep access through Caddy.
+- Use `/healthz` for unauthenticated liveness checks. `/api/status` returns
+  project information and requires authentication.

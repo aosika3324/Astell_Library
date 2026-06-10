@@ -1,7 +1,14 @@
 .git
+.gitattributes
+.gitignore
+.env
+*.env
+deploy/container/.env
+deploy/container/projects
 .venv
 venv
 env
+ENV
 __pycache__
 *.pyc
 *.pyo
@@ -17,4 +24,16 @@ htmlcov
 *.pid
 ui_server.log
 relative path to file
+COMM_BUFFER
+mempalace_db/astell_control.db
+mempalace_db/chroma.sqlite3
+mempalace_db/*/
+mempalace_db/**/*.bin
+mempalace_db/**/*.pickle
 garbage
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx

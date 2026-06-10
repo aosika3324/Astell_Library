@@ -53,6 +53,11 @@ ASTELL_UI_HOST = os.environ.get("ASTELL_UI_HOST", "127.0.0.1")
 ASTELL_UI_PORT = int(os.environ.get("ASTELL_UI_PORT", "8080"))
 ASTELL_OPEN_BROWSER = _bool_env("ASTELL_OPEN_BROWSER", True)
 ASTELL_CORS_ORIGINS = _csv_env("ASTELL_CORS_ORIGINS", ["*"])
+ASTELL_AUTH_ENABLED = _bool_env("ASTELL_AUTH_ENABLED", False)
+ASTELL_AUTH_USER = os.environ.get("ASTELL_AUTH_USER", "astell")
+ASTELL_AUTH_PASSWORD = os.environ.get("ASTELL_AUTH_PASSWORD", "")
+ASTELL_AUTH_PASSWORD_SHA256 = os.environ.get("ASTELL_AUTH_PASSWORD_SHA256", "").lower()
+ASTELL_AUTH_REALM = os.environ.get("ASTELL_AUTH_REALM", "Astell Library")
 
 
 def add_runtime_paths() -> None:
