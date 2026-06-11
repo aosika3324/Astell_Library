@@ -3,6 +3,7 @@ import os
 import base64
 import binascii
 import hashlib
+import hmac
 import json
 import secrets
 import sqlite3
@@ -20,11 +21,14 @@ from astell_config import (
     ASTELL_AUTH_PASSWORD_SHA256,
     ASTELL_AUTH_REALM,
     ASTELL_AUTH_USER,
+    ASTELL_AUTH_BOOTSTRAP_MODE,
     ASTELL_AUTH_USERS_SHA256,
     ASTELL_ADMIN_USERS,
     ASTELL_CORS_ORIGINS,
     ASTELL_CONTROL_DB,
     ASTELL_EMPLOYEE_USERS,
+    ASTELL_JWT_EXPIRE_MINUTES,
+    ASTELL_JWT_SECRET,
     ASTELL_LIBRARY_ROOT as ASTELL_LIBRARY_ROOT_PATH,
     ASTELL_OPEN_BROWSER,
     ASTELL_UI_HOST,
@@ -64,13 +68,15 @@ MEMPALACE_DB = str(MEMPALACE_DB_PATH)
 app = FastAPI(title="Astell Control Tower API", version="2.0.0")
 
 
-AUTH_EXEMPT_PATHS = {"/healthz"}
+AUTH_EXEMPT_PATHS = {"/", "/index.html", "/healthz", "/readyz", "/api/auth/login"}
+AUTH_EXEMPT_PREFIXES = ("/ui/",)
 ADMIN_REQUIRED_ENDPOINTS = {
     ("GET", "/api/users"),
     ("GET", "/api/pending"),
     ("GET", "/api/astell/audit-report"),
     ("POST", "/api/project/switch"),
     ("POST", "/api/project/prefix"),
+    ("POST", "/api/users"),
     ("POST", "/api/workspace/tag"),
     ("POST", "/api/solidify/execute"),
     ("POST", "/api/solidify/reject"),
@@ -80,6 +86,9 @@ ADMIN_REQUIRED_ENDPOINTS = {
 AUTH_USER_HASHES: dict[str, str] = {}
 AUTH_USER_PASSWORDS: dict[str, str] = {}
 AUTH_USER_ROLES: dict[str, str] = {}
+JWT_ALGORITHM = "HS256"
+JWT_TTL_SECONDS = max(1, ASTELL_JWT_EXPIRE_MINUTES) * 60
+PASSWORD_ITERATIONS = 120_000
 
 
 def _role_from_sets(username: str | None) -> str:
@@ -122,53 +131,217 @@ for raw_auth_user in ASTELL_AUTH_USERS_SHA256:
     role = parts[2].strip().lower() if len(parts) > 2 else None
     _register_auth_user(username, password_sha256=password_sha256, role=role)
 
-if ASTELL_AUTH_ENABLED and not (AUTH_USER_PASSWORDS or AUTH_USER_HASHES):
-    raise RuntimeError(
-        "ASTELL_AUTH_PASSWORD, ASTELL_AUTH_PASSWORD_SHA256, or ASTELL_AUTH_USERS_SHA256 must be set when ASTELL_AUTH_ENABLED=1"
+
+def _auth_db_conn():
+    conn = sqlite3.connect(str(ASTELL_CONTROL_DB))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _ensure_user_store() -> None:
+    os.makedirs(os.path.dirname(str(ASTELL_CONTROL_DB)), exist_ok=True)
+    with _auth_db_conn() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('admin', 'employee')),
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_login_at TEXT
+            )
+            """
+        )
+        conn.commit()
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_urlsafe(18)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_ITERATIONS,
     )
+    digest_b64 = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${salt}${digest_b64}"
 
 
-def _auth_challenge() -> Response:
-    return Response(
-        content="Authentication required",
-        status_code=401,
-        headers={"WWW-Authenticate": f'Basic realm="{ASTELL_AUTH_REALM}"'},
-    )
+def _verify_password(password: str, stored_hash: str) -> bool:
+    if stored_hash.startswith("sha256$"):
+        expected = stored_hash.split("$", 1)[1]
+        actual = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return secrets.compare_digest(actual, expected)
 
-
-def _basic_auth_valid(header_value: str) -> bool:
-    return _authenticated_user(header_value) is not None
-
-
-def _authenticated_user(header_value: str) -> str | None:
-    parsed = _parse_basic_auth(header_value)
-    if not parsed:
-        return None
-    username, password = parsed
-
-    plain_password = AUTH_USER_PASSWORDS.get(username)
-    if plain_password:
-        return username if secrets.compare_digest(password, plain_password) else None
-
-    expected_hash = AUTH_USER_HASHES.get(username)
-    if not expected_hash:
-        return None
-    password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    return username if secrets.compare_digest(password_hash, expected_hash) else None
-
-
-def _parse_basic_auth(header_value: str) -> tuple[str, str] | None:
-    auth_scheme, separator, auth_param = header_value.partition(" ")
-    if auth_scheme.lower() != "basic" or not separator:
-        return None
+    parts = stored_hash.split("$")
+    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+        return False
+    _, iterations, salt, expected_b64 = parts
     try:
-        decoded = base64.b64decode(auth_param.strip(), validate=True).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError):
+        digest = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            int(iterations),
+        )
+    except ValueError:
+        return False
+    actual_b64 = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return secrets.compare_digest(actual_b64, expected_b64)
+
+
+def _upsert_user(username: str, password_hash: str | None, role: str, is_active: bool = True) -> None:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if role not in {"admin", "employee"}:
+        raise ValueError("role must be admin or employee")
+
+    with _auth_db_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, password_hash FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        effective_hash = password_hash or (existing["password_hash"] if existing else None)
+        if not effective_hash:
+            raise ValueError("password is required for new users")
+        conn.execute(
+            """
+            INSERT INTO users (username, password_hash, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                password_hash = excluded.password_hash,
+                role = excluded.role,
+                is_active = excluded.is_active,
+                updated_at = excluded.updated_at
+            """,
+            (username, effective_hash, role, int(is_active), now, now),
+        )
+        conn.commit()
+
+
+def _seed_user(username: str, password_hash: str, role: str) -> None:
+    if ASTELL_AUTH_BOOTSTRAP_MODE == "sync":
+        _upsert_user(username, password_hash, role, True)
+        return
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with _auth_db_conn() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO users (username, password_hash, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, 1, ?, ?)
+            """,
+            (username, password_hash, role, now, now),
+        )
+        conn.commit()
+
+
+def _bootstrap_auth_users() -> None:
+    _ensure_user_store()
+
+    for username, password in AUTH_USER_PASSWORDS.items():
+        _seed_user(username, _hash_password(password), _role_for_user(username))
+
+    for username, password_sha256 in AUTH_USER_HASHES.items():
+        _seed_user(username, f"sha256${password_sha256}", _role_for_user(username))
+
+    if ASTELL_AUTH_ENABLED:
+        with _auth_db_conn() as conn:
+            user_count = conn.execute("SELECT COUNT(*) AS count FROM users WHERE is_active = 1").fetchone()["count"]
+        if user_count == 0:
+            raise RuntimeError(
+                "No active users configured. Set ASTELL_AUTH_PASSWORD_SHA256 or ASTELL_AUTH_USERS_SHA256."
+            )
+
+
+def _get_user(username: str):
+    with _auth_db_conn() as conn:
+        return conn.execute(
+            "SELECT username, password_hash, role, is_active FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+
+
+def _list_users() -> list[dict]:
+    with _auth_db_conn() as conn:
+        rows = conn.execute(
+            "SELECT username, role, is_active, created_at, updated_at, last_login_at FROM users ORDER BY role, username"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _authenticate_credentials(username: str, password: str) -> dict | None:
+    user = _get_user(username)
+    if not user or not user["is_active"]:
         return None
-    username, separator, password = decoded.partition(":")
-    if not separator:
+    if not _verify_password(password, user["password_hash"]):
         return None
-    return username, password
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with _auth_db_conn() as conn:
+        conn.execute("UPDATE users SET last_login_at = ? WHERE username = ?", (now, username))
+        conn.commit()
+    return {"username": user["username"], "role": user["role"]}
+
+
+def _b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def _create_jwt(username: str, role: str) -> tuple[str, int]:
+    now = int(time.time())
+    exp = now + JWT_TTL_SECONDS
+    header = {"alg": JWT_ALGORITHM, "typ": "JWT"}
+    payload = {
+        "sub": username,
+        "role": role,
+        "iat": now,
+        "exp": exp,
+        "nonce": secrets.token_urlsafe(12),
+    }
+    header_b64 = _b64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
+    signature = hmac.new(ASTELL_JWT_SECRET.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    return f"{header_b64}.{payload_b64}.{_b64url_encode(signature)}", exp
+
+
+def _verify_jwt(token: str) -> dict | None:
+    try:
+        header_b64, payload_b64, signature_b64 = token.split(".")
+        signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
+        expected = hmac.new(ASTELL_JWT_SECRET.encode("utf-8"), signing_input, hashlib.sha256).digest()
+        actual = _b64url_decode(signature_b64)
+        if not secrets.compare_digest(actual, expected):
+            return None
+        payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, binascii.Error, UnicodeDecodeError):
+        return None
+
+    if int(payload.get("exp", 0)) < int(time.time()):
+        return None
+    username = payload.get("sub")
+    role = payload.get("role")
+    if not username or role not in {"admin", "employee"}:
+        return None
+
+    user = _get_user(username)
+    if not user or not user["is_active"] or user["role"] != role:
+        return None
+    return {"username": username, "role": role}
+
+
+def _authenticated_session(header_value: str) -> dict | None:
+    auth_scheme, separator, token = header_value.partition(" ")
+    if auth_scheme.lower() != "bearer" or not separator:
+        return None
+    return _verify_jwt(token.strip())
 
 
 def _role_for_user(username: str | None) -> str:
@@ -177,20 +350,33 @@ def _role_for_user(username: str | None) -> str:
     return _role_from_sets(username)
 
 
+def _is_auth_exempt(path: str) -> bool:
+    return path in AUTH_EXEMPT_PATHS or any(path.startswith(prefix) for prefix in AUTH_EXEMPT_PREFIXES)
+
+
+_bootstrap_auth_users()
+
+
 @app.middleware("http")
-async def require_basic_auth(request: Request, call_next):
-    if not ASTELL_AUTH_ENABLED or request.url.path in AUTH_EXEMPT_PATHS:
+async def require_auth(request: Request, call_next):
+    if not ASTELL_AUTH_ENABLED:
         request.state.username = "local"
         request.state.role = "admin"
         return await call_next(request)
 
-    username = _authenticated_user(request.headers.get("Authorization", ""))
-    if not username:
-        return _auth_challenge()
+    if _is_auth_exempt(request.url.path):
+        return await call_next(request)
 
-    role = _role_for_user(username)
-    request.state.username = username
-    request.state.role = role
+    session = _authenticated_session(request.headers.get("Authorization", ""))
+    if not session:
+        return JSONResponse(
+            content={"detail": "Authentication required"},
+            status_code=401,
+        )
+
+    request.state.username = session["username"]
+    request.state.role = session["role"]
+    role = session["role"]
     if (request.method.upper(), request.url.path) in ADMIN_REQUIRED_ENDPOINTS and role != "admin":
         return JSONResponse(
             content={"detail": "Admin role required"},
@@ -225,6 +411,18 @@ app.add_middleware(
 )
 
 # === Models ===
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserUpsertRequest(BaseModel):
+    username: str
+    password: Optional[str] = None
+    role: str = "employee"
+    is_active: bool = True
+
+
 class ProjectCreate(BaseModel):
     path: str
     prefix: Optional[str] = None
@@ -306,6 +504,25 @@ def healthz():
     return {"status": "ok"}
 
 
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    username = req.username.strip()
+    if not username or not req.password:
+        raise HTTPException(status_code=400, detail="用户名和密码不能为空")
+
+    user = _authenticate_credentials(username, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    token, expires_at = _create_jwt(user["username"], user["role"])
+    return {
+        "token": token,
+        "token_type": "bearer",
+        "expires_at": expires_at,
+        "user": user,
+    }
+
+
 @app.get("/api/session")
 def get_session(request: Request):
     username = getattr(request.state, "username", None)
@@ -320,11 +537,23 @@ def get_session(request: Request):
 
 @app.get("/api/users")
 def get_users():
-    users = [
-        {"username": username, "role": role}
-        for username, role in sorted(AUTH_USER_ROLES.items())
-    ]
-    return {"users": users}
+    return {"users": _list_users()}
+
+
+@app.post("/api/users")
+def upsert_user(req: UserUpsertRequest):
+    username = req.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    if req.role not in {"admin", "employee"}:
+        raise HTTPException(status_code=400, detail="角色只能是 admin 或 employee")
+
+    password_hash = _hash_password(req.password) if req.password else None
+    try:
+        _upsert_user(username, password_hash, req.role, req.is_active)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "users": _list_users()}
 
 
 @app.get("/readyz")

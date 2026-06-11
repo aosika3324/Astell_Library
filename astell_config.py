@@ -61,6 +61,12 @@ ASTELL_AUTH_USERS_SHA256 = _csv_env("ASTELL_AUTH_USERS_SHA256", [])
 ASTELL_AUTH_REALM = os.environ.get("ASTELL_AUTH_REALM", "Astell Library")
 ASTELL_ADMIN_USERS = set(_csv_env("ASTELL_ADMIN_USERS", [ASTELL_AUTH_USER]))
 ASTELL_EMPLOYEE_USERS = set(_csv_env("ASTELL_EMPLOYEE_USERS", []))
+ASTELL_JWT_SECRET = os.environ.get(
+    "ASTELL_JWT_SECRET",
+    ASTELL_AUTH_PASSWORD_SHA256 or ASTELL_AUTH_PASSWORD or "astell-dev-secret-change-me",
+)
+ASTELL_JWT_EXPIRE_MINUTES = int(os.environ.get("ASTELL_JWT_EXPIRE_MINUTES", "720"))
+ASTELL_AUTH_BOOTSTRAP_MODE = os.environ.get("ASTELL_AUTH_BOOTSTRAP_MODE", "seed").strip().lower()
 
 
 def add_runtime_paths() -> None:

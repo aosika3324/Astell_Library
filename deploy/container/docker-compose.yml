@@ -24,6 +24,9 @@ services:
       ASTELL_AUTH_REALM: ${ASTELL_AUTH_REALM:-Astell Library}
       ASTELL_ADMIN_USERS: ${ASTELL_ADMIN_USERS:-astell}
       ASTELL_EMPLOYEE_USERS: ${ASTELL_EMPLOYEE_USERS:-employee}
+      ASTELL_JWT_SECRET: ${ASTELL_JWT_SECRET:?Set ASTELL_JWT_SECRET in .env by running ./init_env.sh}
+      ASTELL_JWT_EXPIRE_MINUTES: ${ASTELL_JWT_EXPIRE_MINUTES:-720}
+      ASTELL_AUTH_BOOTSTRAP_MODE: ${ASTELL_AUTH_BOOTSTRAP_MODE:-seed}
       ASTELL_CORS_ORIGINS: ${ASTELL_CORS_ORIGINS:?Set ASTELL_CORS_ORIGINS in .env by running ./init_env.sh}
     volumes:
       - astell_mempalace_db:/data/mempalace_db

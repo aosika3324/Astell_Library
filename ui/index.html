@@ -7,7 +7,35 @@
     <link rel="stylesheet" href="ui/css/style.css">
 </head>
 <body>
-    <div class="app-shell">
+    <section id="login-screen" class="login-screen">
+        <div class="login-panel">
+            <div class="brand compact-brand">
+                <div class="brand-mark">A</div>
+                <div>
+                    <h1>Astell</h1>
+                    <p>ModSDK MCP Console</p>
+                </div>
+            </div>
+            <div>
+                <h2>登录控制台</h2>
+                <p>使用管理员或员工账号进入对应工作台。</p>
+            </div>
+            <form id="login-form" class="form-stack">
+                <label>
+                    <span>用户名</span>
+                    <input id="login-username" type="text" autocomplete="username" placeholder="admin">
+                </label>
+                <label>
+                    <span>密码</span>
+                    <input id="login-password" type="password" autocomplete="current-password" placeholder="输入密码">
+                </label>
+                <button type="submit" class="primary-button">登录</button>
+            </form>
+            <div id="login-error" class="form-error hidden"></div>
+        </div>
+    </section>
+
+    <div id="app-shell" class="app-shell hidden">
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-mark">A</div>
@@ -70,6 +98,7 @@
                         <span id="session-role">管理员</span>
                         <strong id="session-user">local</strong>
                     </div>
+                    <button type="button" class="ghost-button" id="logout-button">退出</button>
                     <button type="button" class="ghost-button" id="refresh-all">刷新</button>
                 </div>
             </header>
@@ -172,13 +201,30 @@
                         <div class="panel-head">
                             <div>
                                 <h3>成员视图</h3>
-                                <p>当前版本使用应用层 Basic Auth；角色来自登录账号。</p>
+                                <p>当前版本使用应用内登录；角色来自账号配置。</p>
                             </div>
                         </div>
                         <div class="role-note">
                             <p><strong>管理员</strong> 可以切换项目、固化记忆、打包知识库、更新前缀、查看系统状态。</p>
                             <p><strong>员工</strong> 可以查看项目记录、检索知识、写入留痕、登记资源、使用官方 SDK 工具。</p>
                         </div>
+                        <form id="user-form" class="form-stack member-form">
+                            <div class="form-row">
+                                <input id="member-username" type="text" placeholder="员工用户名">
+                                <select id="member-role">
+                                    <option value="employee">员工</option>
+                                    <option value="admin">管理员</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <input id="member-password" type="password" placeholder="新密码；留空则不改">
+                                <label class="checkline">
+                                    <input id="member-active" type="checkbox" checked>
+                                    <span>启用</span>
+                                </label>
+                            </div>
+                            <button type="submit" class="ghost-button" data-admin-action>保存成员</button>
+                        </form>
                         <div id="user-table" class="table-wrap role-table"></div>
                     </section>
                 </div>

@@ -50,7 +50,7 @@ bash ./init_env.sh astell.example.com admin 'AdminPassword' admin@example.com em
 docker compose up -d --build
 ```
 
-多账号由应用层 Basic Auth 处理。可在 `.env` 中配置：
+多账号由 SQLite 用户表和前端 JWT 登录处理。`.env` 中的账号配置只用于首次启动或重置时写入/更新用户表：
 
 ```dotenv
 ASTELL_AUTH_USER=admin
@@ -58,6 +58,9 @@ ASTELL_AUTH_PASSWORD_SHA256=<admin-password-sha256>
 ASTELL_AUTH_USERS_SHA256=admin:<admin-password-sha256>:admin,employee:<employee-password-sha256>:employee
 ASTELL_ADMIN_USERS=admin
 ASTELL_EMPLOYEE_USERS=employee
+ASTELL_JWT_SECRET=<stable-random-secret>
+ASTELL_JWT_EXPIRE_MINUTES=720
+ASTELL_AUTH_BOOTSTRAP_MODE=seed
 ```
 
 ---

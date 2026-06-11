@@ -36,6 +36,14 @@ $AstellPasswordSha256 = -join ($hashBytes | ForEach-Object { $_.ToString("x2") }
 $AstellAuthUsersSha256 = "$User`:$AstellPasswordSha256`:admin"
 $AstellEmployeeUsers = ""
 $generatedEmployeePassword = $false
+$AstellJwtSecret = $env:ASTELL_JWT_SECRET
+if (-not $AstellJwtSecret) {
+    $jwtBytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
+    $AstellJwtSecret = -join ($jwtBytes | ForEach-Object { $_.ToString("x2") })
+}
+$AstellJwtExpireMinutes = $env:ASTELL_JWT_EXPIRE_MINUTES
+if (-not $AstellJwtExpireMinutes) { $AstellJwtExpireMinutes = "720" }
 
 if ($EmployeeUser) {
     if (-not $EmployeePassword) {
@@ -68,6 +76,9 @@ ASTELL_AUTH_USERS_SHA256=$AstellAuthUsersSha256
 ASTELL_AUTH_REALM=Astell Library
 ASTELL_ADMIN_USERS=$User
 ASTELL_EMPLOYEE_USERS=$AstellEmployeeUsers
+ASTELL_JWT_SECRET=$AstellJwtSecret
+ASTELL_JWT_EXPIRE_MINUTES=$AstellJwtExpireMinutes
+ASTELL_AUTH_BOOTSTRAP_MODE=seed
 ASTELL_CORS_ORIGINS=$CorsOrigins
 ASTELL_UI_HOST=0.0.0.0
 ASTELL_UI_PORT=8080

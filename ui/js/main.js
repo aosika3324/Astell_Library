@@ -1,4 +1,5 @@
 const state = {
+    token: localStorage.getItem("astell.jwt") || "",
     role: localStorage.getItem("astell.role") || "employee",
     session: null,
     status: null,
@@ -12,6 +13,7 @@ const state = {
     users: [],
     health: null,
     ready: null,
+    refreshTimer: null,
 };
 
 const titles = {
@@ -37,8 +39,55 @@ function showToast(message) {
     showToast.timer = setTimeout(() => toast.classList.add("hidden"), 3600);
 }
 
+function setLoginError(message) {
+    const el = $("#login-error");
+    if (!el) return;
+    el.textContent = message || "";
+    el.classList.toggle("hidden", !message);
+}
+
+function showLogin(message = "") {
+    $("#login-screen")?.classList.remove("hidden");
+    $("#app-shell")?.classList.add("hidden");
+    setLoginError(message);
+    if (state.refreshTimer) {
+        clearInterval(state.refreshTimer);
+        state.refreshTimer = null;
+    }
+}
+
+function showApp() {
+    $("#login-screen")?.classList.add("hidden");
+    $("#app-shell")?.classList.remove("hidden");
+    setLoginError("");
+}
+
+function setToken(token) {
+    state.token = token || "";
+    if (state.token) localStorage.setItem("astell.jwt", state.token);
+    else localStorage.removeItem("astell.jwt");
+}
+
+function logout(message = "已退出。") {
+    setToken("");
+    state.session = null;
+    state.pending = [];
+    state.users = [];
+    showLogin(message);
+}
+
+function startRefreshLoop() {
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+    state.refreshTimer = setInterval(refreshAll, 15000);
+}
+
 async function fetchJson(url, options = {}) {
-    const res = await fetch(url, options);
+    const { auth = true, ...fetchOptions } = options;
+    const headers = new Headers(fetchOptions.headers || {});
+    if (auth && state.token) {
+        headers.set("Authorization", `Bearer ${state.token}`);
+    }
+    const res = await fetch(url, { ...fetchOptions, headers });
     const text = await res.text();
     let data = {};
     if (text) {
@@ -49,13 +98,17 @@ async function fetchJson(url, options = {}) {
         }
     }
     if (!res.ok) {
+        if (res.status === 401 && auth) {
+            logout("登录已过期，请重新登录。");
+        }
         throw new Error(data.detail || `${res.status} ${res.statusText}`);
     }
     return data;
 }
 
-function postJson(url, payload) {
+function postJson(url, payload, options = {}) {
     return fetchJson(url, {
+        ...options,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -161,16 +214,45 @@ function renderProjectTable() {
     }).join("");
 }
 
+async function login(event) {
+    event.preventDefault();
+    const username = $("#login-username").value.trim();
+    const password = $("#login-password").value;
+    if (!username || !password) {
+        setLoginError("请输入用户名和密码。");
+        return;
+    }
+
+    setLoginError("");
+    try {
+        const data = await postJson(
+            "/api/auth/login",
+            { username, password },
+            { auth: false },
+        );
+        setToken(data.token);
+        $("#login-password").value = "";
+        await initializeApp();
+    } catch (e) {
+        setToken("");
+        setLoginError(e.message || "登录失败。");
+    }
+}
+
 async function loadSession() {
     try {
         state.session = await fetchJson("/api/session");
-    } catch {
-        state.session = { username: "unknown", role: "employee", auth_enabled: true };
+    } catch (e) {
+        state.session = null;
+        showLogin(state.token ? "登录已过期，请重新登录。" : "请登录后进入控制台。");
+        return false;
     }
 
     setText("session-user", state.session.username || "unknown");
     const initialRole = state.session.role === "admin" ? state.role : "employee";
     setRole(initialRole, { fromSession: true });
+    showApp();
+    return true;
 }
 
 async function loadHealth() {
@@ -257,10 +339,45 @@ function renderUsers() {
         <div class="table-row compact-table-row">
             <div>
                 <strong>${escapeHtml(user.username)}</strong>
-                <small>由环境变量配置，修改后需要重启服务</small>
+                <small>${user.is_active ? "已启用" : "已停用"}${user.last_login_at ? ` / 上次登录 ${escapeHtml(user.last_login_at)}` : ""}</small>
             </div>
-            <span class="status-pill ${user.role === "admin" ? "ok" : ""}">${user.role === "admin" ? "管理员" : "员工"}</span>
+            <div class="button-row">
+                <span class="status-pill ${user.role === "admin" ? "ok" : ""}">${user.role === "admin" ? "管理员" : "员工"}</span>
+                <button type="button" data-edit-user="${escapeAttr(user.username)}" data-role="${escapeAttr(user.role)}" data-active="${user.is_active ? "1" : "0"}">编辑</button>
+            </div>
         </div>`).join("");
+
+    container.querySelectorAll("[data-edit-user]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            $("#member-username").value = btn.dataset.editUser;
+            $("#member-role").value = btn.dataset.role || "employee";
+            $("#member-active").checked = btn.dataset.active === "1";
+            $("#member-password").value = "";
+            $("#member-password").placeholder = "留空则不改密码";
+        });
+    });
+}
+
+async function saveUser(event) {
+    event.preventDefault();
+    if (!isAdmin()) return showToast("需要管理员角色。");
+    const username = $("#member-username").value.trim();
+    if (!username) return showToast("请填写成员用户名。");
+
+    try {
+        const data = await postJson("/api/users", {
+            username,
+            password: $("#member-password").value || null,
+            role: $("#member-role").value,
+            is_active: $("#member-active").checked,
+        });
+        state.users = data.users || [];
+        renderUsers();
+        $("#member-password").value = "";
+        showToast("成员已保存。");
+    } catch (e) {
+        showToast(`成员保存失败：${e.message}`);
+    }
 }
 
 function renderPending() {
@@ -766,6 +883,7 @@ function copyModsdkOutput() {
 }
 
 async function refreshAll() {
+    if (!state.session) return;
     const tasks = [loadStatus(), loadHealth()];
     if (isAdmin()) {
         tasks.push(loadPending(), loadUsers());
@@ -777,7 +895,17 @@ async function refreshAll() {
     renderOverview();
 }
 
+async function initializeApp() {
+    const ok = await loadSession();
+    if (!ok) return;
+    await refreshAll();
+    switchView("dashboard");
+    startRefreshLoop();
+}
+
 function bindEvents() {
+    $("#login-form")?.addEventListener("submit", login);
+    $("#logout-button")?.addEventListener("click", () => logout("已退出，请重新登录。"));
     $$(".nav-item[data-view]").forEach((btn) => btn.addEventListener("click", () => switchView(btn.dataset.view)));
     $$("[data-view-jump]").forEach((btn) => btn.addEventListener("click", () => switchView(btn.dataset.viewJump)));
     $$("[data-role-option]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -790,6 +918,7 @@ function bindEvents() {
     $("#reload-workspace")?.addEventListener("click", loadWorkspace);
     $("#reload-library")?.addEventListener("click", loadLibrary);
     $("#project-form")?.addEventListener("submit", switchProject);
+    $("#user-form")?.addEventListener("submit", saveUser);
     $("#approve-solidify")?.addEventListener("click", approveSolidify);
     $("#reject-solidify")?.addEventListener("click", rejectSolidify);
     $("#mark-untrustworthy")?.addEventListener("click", markWorkspaceUntrustworthy);
@@ -823,8 +952,5 @@ function escapeAttr(value) {
 
 document.addEventListener("DOMContentLoaded", async () => {
     bindEvents();
-    await loadSession();
-    await refreshAll();
-    switchView("dashboard");
-    setInterval(refreshAll, 15000);
+    await initializeApp();
 });
